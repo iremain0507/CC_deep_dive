@@ -290,6 +290,44 @@ Gather Context → Take Action → Verify Work → Loop
 
 이 4단계 모델은 이전의 단순한 "API 호출 → 도구 실행 → 반복"보다 진화한 것이다. **검증(Verify)** 단계가 추가되었다. 이것이 Stop Hook과 Evaluator 패턴의 이론적 근거가 된다.
 
+### 2b. "The Think Tool" — 54% 추론 품질 향상 (2025.03)
+
+이 시기에 발표된 가장 실용적인 패턴 중 하나. **부작용이 없는 "생각" 도구**를 추가하는 것만으로 복잡한 순차 도구 호출의 품질이 극적으로 향상된다.
+
+```json
+{
+  "name": "think",
+  "description": "Use the tool to think about something. It will not obtain new information or change the database, but just append the thought to the log.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "thought": { "type": "string" }
+    },
+    "required": ["thought"]
+  }
+}
+```
+
+**벤치마크**: Think + 최적화 프롬프트 = **0.584** vs 기본 0.332 (**54% 상대적 향상**). SWE-bench에서도 1.6% 향상 (p < .001, d = 1.47).
+
+**핵심**: Extended Thinking은 첫 응답 전에만 작동하지만, Think Tool은 **도구 호출 사이사이에** 추론을 가능하게 한다. 정책 준수가 중요한 Enterprise 에이전트에 필수적이다.
+
+**당신의 시스템에 적용**: 구현은 JSON 5줄이지만 효과는 54%. 모든 Agentic 시스템에 Think Tool을 추가하라. 도메인 복잡도에 비례하여 프롬프트에 "모든 행동 전에 think를 사용하여 적용 규칙을 나열하라"를 추가하라.
+
+### 2c. "Writing Effective Tools for Agents" — 도구 설계의 7가지 원칙
+
+Anthropic이 강조한 "도구 설계는 프롬프트 엔지니어링만큼 중요하다"의 실체:
+
+| 원칙 | 구체적 지침 |
+|------|-----------|
+| **3-5개 고영향 도구에 집중** | 모든 API 엔드포인트를 래핑하지 말라. 다중 단계를 통합한 도구 |
+| **시맨틱 응답** | UUID → 의미 있는 이름으로. "검색 정밀도가 크게 향상" |
+| **response_format 파라미터** | `"detailed"` (206토큰) vs `"concise"` (72토큰) 에이전트 제어 |
+| **토큰 효율** | 기본 25,000 토큰 응답 제한. 잘린 결과는 "왜 + 더 나은 검색 전략 제안" |
+| **행동 가능한 에러** | "Error 403" → "admin 역할 필요. get_user_roles로 확인하세요" |
+| **네임스페이싱** | 접두사 vs 접미사 선택이 성능을 측정 가능하게 변화시킨다 |
+| **평가 루프** | 4가지 메트릭: 정확도, 실행시간, 토큰 소비, 에러율 |
+
 ### 3. Claude Code의 실제 변경사항 (2025.09.29)
 
 같은 날 Claude Code에 추가된 기능들:
