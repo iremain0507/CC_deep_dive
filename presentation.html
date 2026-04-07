@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enterprise Agentic LLM System 구축의 기술 — Claude Code 심층 분석</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a28;--surface3:#222235;
+  --border:#2a2a40;--text:#e0e0f0;--text2:#9090b0;--text3:#606080;
+  --accent:#6366f1;--accent2:#818cf8;--accent3:#a5b4fc;
+  --green:#34d399;--green2:#059669;--orange:#f59e0b;--red:#ef4444;
+  --cyan:#22d3ee;--pink:#ec4899;
+  --font-sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'SF Mono','Cascadia Code','Fira Code',monospace;
+}
+html{scroll-behavior:smooth;font-size:16px}
+body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-height:1.7;overflow-x:hidden}
+::selection{background:var(--accent);color:#fff}
+
+/* Navigation */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,10,15,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:.6rem 1.5rem;display:flex;align-items:center;gap:1rem;transition:transform .3s}
+nav.hidden{transform:translateY(-100%)}
+.nav-logo{font-weight:700;font-size:.9rem;color:var(--accent2);white-space:nowrap;letter-spacing:-.02em}
+.nav-items{display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none;flex:1}
+.nav-items::-webkit-scrollbar{display:none}
+.nav-item{padding:.35rem .7rem;border-radius:6px;font-size:.75rem;color:var(--text2);cursor:pointer;white-space:nowrap;transition:all .2s;border:1px solid transparent}
+.nav-item:hover{color:var(--text);background:var(--surface2)}
+.nav-item.active{color:var(--accent2);background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.3)}
+.nav-progress{height:2px;background:var(--accent);position:absolute;bottom:0;left:0;transition:width .3s}
+
+/* Slide sections */
+.slide{min-height:100vh;padding:5rem 2rem 3rem;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;opacity:0;transform:translateY(30px);transition:opacity .6s,transform .6s}
+.slide.visible{opacity:1;transform:translateY(0)}
+.slide-inner{max-width:1100px;width:100%}
+
+/* Typography */
+h1{font-size:clamp(2rem,5vw,3.5rem);font-weight:800;letter-spacing:-.03em;line-height:1.15;margin-bottom:1rem}
+h2{font-size:clamp(1.5rem,3.5vw,2.2rem);font-weight:700;letter-spacing:-.02em;margin-bottom:.75rem}
+h3{font-size:1.15rem;font-weight:600;margin-bottom:.5rem;color:var(--accent3)}
+p,.desc{color:var(--text2);font-size:1rem;line-height:1.8;margin-bottom:1rem}
+.gradient-text{background:linear-gradient(135deg,var(--accent2),var(--cyan),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.highlight{color:var(--accent2);font-weight:600}
+.tag{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-size:.7rem;font-weight:600;letter-spacing:.03em;text-transform:uppercase}
+.tag-blue{background:rgba(99,102,241,.15);color:var(--accent2);border:1px solid rgba(99,102,241,.3)}
+.tag-green{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+.tag-orange{background:rgba(245,158,11,.12);color:var(--orange);border:1px solid rgba(245,158,11,.3)}
+.tag-pink{background:rgba(236,72,153,.12);color:var(--pink);border:1px solid rgba(236,72,153,.3)}
+
+/* Cards & Containers */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;transition:all .3s}
+.card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 30px rgba(99,102,241,.1)}
+.card-grid{display:grid;gap:1rem;margin:1.5rem 0}
+.card-grid-2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.card-grid-3{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+
+/* Code blocks */
+.code-block{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.25rem;font-family:var(--font-mono);font-size:.8rem;line-height:1.7;overflow-x:auto;margin:1rem 0;color:var(--text2);white-space:pre;tab-size:2}
+.code-block .kw{color:var(--accent2)}
+.code-block .fn{color:var(--cyan)}
+.code-block .str{color:var(--green)}
+.code-block .cmt{color:var(--text3);font-style:italic}
+.code-block .num{color:var(--orange)}
+.code-block .hl{color:var(--pink);font-weight:600}
+
+/* Timeline */
+.timeline{position:relative;padding-left:2rem;margin:2rem 0}
+.timeline::before{content:'';position:absolute;left:.5rem;top:0;bottom:0;width:2px;background:linear-gradient(to bottom,var(--accent),var(--cyan),var(--pink),var(--green))}
+.timeline-item{position:relative;padding-bottom:2rem;opacity:0;transform:translateX(-20px);transition:all .5s}
+.timeline-item.visible{opacity:1;transform:translateX(0)}
+.timeline-item::before{content:'';position:absolute;left:-1.65rem;top:.35rem;width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);z-index:1}
+.timeline-item.major::before{width:16px;height:16px;left:-1.75rem;background:var(--cyan);box-shadow:0 0 12px rgba(34,211,238,.4)}
+.timeline-date{font-size:.75rem;color:var(--accent2);font-weight:600;font-family:var(--font-mono)}
+.timeline-title{font-size:1.05rem;font-weight:600;margin:.25rem 0}
+.timeline-desc{color:var(--text2);font-size:.85rem}
+
+/* Interactive diagram */
+.diagram{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:2rem;margin:1.5rem 0;position:relative;overflow:hidden}
+.diagram::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(99,102,241,.05),transparent 70%);pointer-events:none}
+.diagram-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:.8rem 1rem;text-align:center;font-size:.8rem;cursor:pointer;transition:all .3s;position:relative}
+.diagram-box:hover,.diagram-box.active{border-color:var(--accent);background:rgba(99,102,241,.08);box-shadow:0 0 20px rgba(99,102,241,.15)}
+.diagram-box .box-title{font-weight:700;font-size:.85rem;margin-bottom:.25rem}
+.diagram-box .box-sub{color:var(--text3);font-size:.7rem}
+.diagram-arrow{color:var(--text3);text-align:center;font-size:1.2rem;padding:.25rem 0}
+
+/* Stats */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin:1.5rem 0}
+.stat{text-align:center;padding:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.stat-value{font-size:2rem;font-weight:800;font-family:var(--font-mono);margin-bottom:.25rem}
+.stat-value.blue{color:var(--accent2)}
+.stat-value.green{color:var(--green)}
+.stat-value.orange{color:var(--orange)}
+.stat-value.pink{color:var(--pink)}
+.stat-label{font-size:.75rem;color:var(--text3);text-transform:uppercase;letter-spacing:.05em}
+
+/* Tabs */
+.tabs{display:flex;gap:.25rem;margin-bottom:1rem;border-bottom:1px solid var(--border);padding-bottom:.5rem;flex-wrap:wrap}
+.tab{padding:.4rem .8rem;border-radius:6px 6px 0 0;font-size:.8rem;color:var(--text3);cursor:pointer;transition:all .2s;border:1px solid transparent;border-bottom:none}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent2);background:var(--surface);border-color:var(--border)}
+.tab-content{display:none}
+.tab-content.active{display:block;animation:fadeIn .3s}
+
+/* Accordion */
+.accordion{margin:.75rem 0}
+.accordion-header{padding:.8rem 1rem;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:.85rem;font-weight:600;transition:all .2s}
+.accordion-header:hover{border-color:var(--accent)}
+.accordion-header .arrow{transition:transform .3s;color:var(--text3)}
+.accordion-header.open .arrow{transform:rotate(90deg)}
+.accordion-body{max-height:0;overflow:hidden;transition:max-height .4s ease}
+.accordion-body.open{max-height:2000px}
+.accordion-body-inner{padding:1rem;font-size:.85rem;color:var(--text2);line-height:1.8}
+
+/* Quote */
+.quote{border-left:3px solid var(--accent);padding:.75rem 1.25rem;margin:1rem 0;background:rgba(99,102,241,.04);border-radius:0 8px 8px 0;font-style:italic;color:var(--text2)}
+.quote-author{font-style:normal;color:var(--text3);font-size:.75rem;margin-top:.5rem}
+
+/* Flow chart */
+.flow{display:flex;flex-direction:column;gap:.5rem;margin:1rem 0}
+.flow-step{display:flex;align-items:stretch;gap:.75rem}
+.flow-num{width:32px;height:32px;min-width:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700}
+.flow-content{flex:1;padding:.5rem .75rem;background:var(--surface2);border-radius:8px;font-size:.85rem;border:1px solid var(--border)}
+.flow-connector{width:32px;display:flex;justify-content:center;color:var(--text3)}
+
+/* Progress bars */
+.bar-chart{margin:1rem 0}
+.bar-row{display:flex;align-items:center;gap:.75rem;margin:.5rem 0}
+.bar-label{width:120px;font-size:.75rem;color:var(--text2);text-align:right;flex-shrink:0}
+.bar-track{flex:1;height:24px;background:var(--surface2);border-radius:6px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:6px;transition:width 1s ease;position:relative;display:flex;align-items:center;padding-left:.5rem;font-size:.65rem;font-weight:600;color:#fff}
+.bar-fill.blue{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.bar-fill.green{background:linear-gradient(90deg,var(--green2),var(--green))}
+.bar-fill.orange{background:linear-gradient(90deg,#d97706,var(--orange))}
+.bar-fill.pink{background:linear-gradient(90deg,#be185d,var(--pink))}
+
+/* Table */
+.table-wrap{overflow-x:auto;margin:1rem 0;border-radius:10px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{background:var(--surface2);padding:.6rem .8rem;text-align:left;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:.6rem .8rem;border-bottom:1px solid var(--border);color:var(--text2)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(99,102,241,.03)}
+
+/* Animations */
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes slideRight{from{width:0}to{width:var(--target-width)}}
+.animate-pulse{animation:pulse 2s infinite}
+
+/* Responsive */
+@media(max-width:768px){
+  .slide{padding:4rem 1rem 2rem}
+  .card-grid-2,.card-grid-3{grid-template-columns:1fr}
+  .stat-grid{grid-template-columns:repeat(2,1fr)}
+  .flow-step{flex-direction:column;align-items:flex-start}
+  .flow-num{margin-bottom:-.25rem}
+  .bar-label{width:80px;font-size:.65rem}
+  nav{padding:.5rem .75rem}
+}
+
+/* Print */
+@media print{
+  nav,.nav-progress{display:none}
+  .slide{page-break-inside:avoid;opacity:1;transform:none;min-height:auto;padding:1rem}
+}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav id="nav">
+  <div class="nav-logo">Agentic LLM Systems</div>
+  <div class="nav-items" id="navItems"></div>
+  <div class="nav-progress" id="navProgress"></div>
+</nav>
+
+<!-- ==================== SLIDE 0: TITLE ==================== -->
+<section class="slide" id="s0" data-nav="Intro">
+<div class="slide-inner" style="text-align:center">
+  <div style="margin-bottom:1rem">
+    <span class="tag tag-blue" style="font-size:.8rem;padding:.3rem .8rem">Technical Report 2026</span>
+  </div>
+  <h1><span class="gradient-text">Enterprise Agentic LLM System</span><br>구축의 기술</h1>
+  <p style="font-size:1.15rem;max-width:700px;margin:1.5rem auto;color:var(--text2)">
+    Claude Code 심층 분석을 통해 배우는<br>
+    Production-Grade Agentic System의 설계 원칙과 실전 패턴
+  </p>
+  <div class="stat-grid" style="max-width:800px;margin:2.5rem auto">
+    <div class="stat"><div class="stat-value blue" id="animLines">0</div><div class="stat-label">Lines of Code</div></div>
+    <div class="stat"><div class="stat-value green" id="animTools">0</div><div class="stat-label">Built-in Tools</div></div>
+    <div class="stat"><div class="stat-value orange" id="animLayers">0</div><div class="stat-label">Permission Layers</div></div>
+    <div class="stat"><div class="stat-value pink" id="animRevenue">0</div><div class="stat-label">Revenue in 6mo</div></div>
+  </div>
+  <p style="color:var(--text3);font-size:.8rem">
+    <span class="highlight">Agent = Model + Harness</span> &mdash; 모델은 API다. <strong>하네스가 제품이다.</strong>
+  </p>
+</div>
+</section>
+
+<!-- ==================== SLIDE 1: WHY ==================== -->
+<section class="slide" id="s1" data-nav="Why">
+<div class="slide-inner">
+  <span class="tag tag-orange">The Problem</span>
+  <h2 style="margin-top:.75rem">Enterprise Agentic AI의 현실</h2>
+  <p>대부분의 Enterprise Agentic AI 프로젝트가 실패하는 이유</p>
+
+  <div class="stat-grid" style="margin:2rem 0">
+    <div class="stat"><div class="stat-value orange">92%</div><div class="stat-label">비용 초과 경험 (IDC)</div></div>
+    <div class="stat"><div class="stat-value pink">40%</div><div class="stat-label">파일럿 6개월 내 실패 (Gartner)</div></div>
+    <div class="stat"><div class="stat-value orange">17x</div><div class="stat-label">Multi-Agent 오류 증폭 (DeepMind)</div></div>
+    <div class="stat"><div class="stat-value green">$1B</div><div class="stat-label">Claude Code 6개월 매출</div></div>
+  </div>
+
+  <div class="quote">
+    "이 간극은 어디서 오는가? <strong>하네스 설계의 차이</strong>다.<br>
+    모델은 API로 누구나 접근 가능하다. 제품의 차별화는 하네스에서 온다."
+  </div>
+
+  <div class="card" style="margin-top:1.5rem;background:rgba(99,102,241,.04)">
+    <h3>Agent = Model + Harness</h3>
+    <div class="table-wrap" style="border:none">
+    <table>
+      <tr><th>OS 개념</th><th>에이전트 대응물</th><th>Claude Code 구현</th></tr>
+      <tr><td><strong>CPU</strong></td><td>LLM (추론 엔진)</td><td>Anthropic API (Opus/Sonnet/Haiku)</td></tr>
+      <tr><td><strong>RAM</strong></td><td>컨텍스트 윈도우</td><td>200K ~ 1M 토큰</td></tr>
+      <tr><td><strong>OS/Kernel</strong></td><td>하네스</td><td>query.ts (1,729줄 Agentic Loop)</td></tr>
+      <tr><td><strong>System Calls</strong></td><td>도구 호출</td><td>40+ Tools</td></tr>
+      <tr><td><strong>File System</strong></td><td>영구 저장소</td><td>memdir/, history.ts</td></tr>
+      <tr><td><strong>Scheduler</strong></td><td>도구 스케줄링</td><td>StreamingToolExecutor</td></tr>
+      <tr><td><strong>Permissions</strong></td><td>도구 권한</td><td>5-Layer Permission Pipeline</td></tr>
+    </table>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ==================== SLIDE 2: EVOLUTION ==================== -->
+<section class="slide" id="s2" data-nav="진화">
+<div class="slide-inner">
+  <span class="tag tag-blue">Evolution</span>
+  <h2 style="margin-top:.75rem">14개월의 진화: 이론 → 구현 → 교훈 → 보완</h2>
+  <p>Claude Code는 처음부터 완벽하지 않았다. 프로덕션 피드백이 모든 개선을 이끌었다.</p>
+
+  <div class="timeline" id="timeline">
+    <div class="timeline-item" data-delay="0">
+      <div class="timeline-date">2024.12</div>
+      <div class="timeline-title">"Building Effective Agents" 발표</div>
+      <div class="timeline-desc">5가지 워크플로우 패턴, "단순한 것부터 시작하라" 원칙 확립. 2개월 후 탄생할 Claude Code의 설계 청사진.</div>
+    </div>
+    <div class="timeline-item major" data-delay="100">
+      <div class="timeline-date">2025.02</div>
+      <div class="timeline-title">Claude Code 연구 프리뷰 탄생</div>
+      <div class="timeline-desc">while(true) + 기본 도구 + 기본 권한의 <strong>최소 하네스</strong>로 시작. "45분 걸리던 작업을 한 번에 완료."</div>
+    </div>
+    <div class="timeline-item major" data-delay="200">
+      <div class="timeline-date">2025.05</div>
+      <div class="timeline-title">GA 출시 + Claude 4 + SDK</div>
+      <div class="timeline-desc">SWE-bench 72.5%, VS Code/JetBrains 통합, Claude Code SDK 공개. 사용자 폭증 → Pain Point 발견 시작.</div>
+    </div>
+    <div class="timeline-item" data-delay="300">
+      <div class="timeline-date">2025.06</div>
+      <div class="timeline-title">Multi-Agent Research System</div>
+      <div class="timeline-desc">Multi-agent가 단일 대비 90.2% 우수. "토큰 사용량이 성능 분산의 80% 설명." Sub-agent 아키텍처의 근거.</div>
+    </div>
+    <div class="timeline-item major" data-delay="400">
+      <div class="timeline-date">2025.09</div>
+      <div class="timeline-title">Context Engineering + Checkpoint + Hooks</div>
+      <div class="timeline-desc">"주의력 예산" 개념, 자동 체크포인트/롤백, PreToolUse/PostToolUse Hook, Sub-agent 추가. <strong>하네스 성숙의 전환점.</strong></div>
+    </div>
+    <div class="timeline-item major" data-delay="500">
+      <div class="timeline-date">2025.10</div>
+      <div class="timeline-title">Agent Skills + Plugins + Web App + Sandboxing</div>
+      <div class="timeline-desc"><strong>Agent Skills</strong>: 3단계 Progressive Disclosure로 에이전트 전문화. Plugins: Skills+Hooks+MCP 패키징. Web App(claude.ai/code): 브라우저 기반 클라우드 세션. OS 샌드박싱으로 권한 프롬프트 84% 감소.</div>
+    </div>
+    <div class="timeline-item" data-delay="600">
+      <div class="timeline-date">2025.11</div>
+      <div class="timeline-title">Opus 4.5 + Harnesses + Tool Search + Desktop App</div>
+      <div class="timeline-desc">Initializer-Executor 패턴. Tool Search로 토큰 85% 절감. Desktop App으로 시각적 diff 리뷰. effort 파라미터로 비용/성능 제어.</div>
+    </div>
+    <div class="timeline-item major" data-delay="700">
+      <div class="timeline-date">2025.12</div>
+      <div class="timeline-title">$1B + AAIF + Bun + Skills 오픈 표준</div>
+      <div class="timeline-desc">6개월 만에 연간 $1B. MCP를 Linux Foundation에 기부. Bun 인수. Agent Skills를 agentskills.io 개방형 표준으로 발표. 33+ 플랫폼 채택.</div>
+    </div>
+    <div class="timeline-item" data-delay="800">
+      <div class="timeline-date">2026.02</div>
+      <div class="timeline-title">Opus/Sonnet 4.6 (1M Context)</div>
+      <div class="timeline-desc">1M 토큰 컨텍스트. 자율성 측정: 경험 사용자 40%+ 자동승인, 동시에 전략적 개입 증가 (5%→9%).</div>
+    </div>
+    <div class="timeline-item major" data-delay="900">
+      <div class="timeline-date">2026.03</div>
+      <div class="timeline-title">Auto Mode + Skills 2.0 + Planner/Generator/Evaluator</div>
+      <div class="timeline-desc">2계층 안전 시스템 (0.4% 오탐률). <strong>Skills 2.0</strong>: Evals + Blind A/B + Description 최적화. 자기 평가 편향 → 생성/평가 분리.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ==================== SLIDE 3: MINIMAL HARNESS ==================== -->
+<section class="slide" id="s3" data-nav="최소 하네스">
+<div class="slide-inner">
+  <span class="tag tag-green">Day 1</span>
+  <h2 style="margin-top:.75rem">최소 하네스: Day 1에 만들 것</h2>
+  <p>Claude Code도 여기서 시작했다. 당신의 시스템도 여기서 출발해야 한다.</p>
+
+  <div class="code-block"><span class="kw">while</span> (<span class="num">true</span>) {
+  <span class="cmt">// 1. 시스템 프롬프트 + 사용자 메시지 → API 호출</span>
+  <span class="kw">const</span> response = <span class="kw">await</span> <span class="fn">callLLM</span>(messages);
+
+  <span class="cmt">// 2. 응답에서 tool_use 블록 추출</span>
+  <span class="kw">const</span> toolCalls = response.content.<span class="fn">filter</span>(b => b.type === <span class="str">'tool_use'</span>);
+
+  <span class="cmt">// 3. 도구 호출이 없으면 → 완료</span>
+  <span class="kw">if</span> (toolCalls.length === <span class="num">0</span>) <span class="kw">break</span>;
+
+  <span class="cmt">// 4. 각 도구 실행 + 결과를 메시지에 추가</span>
+  <span class="kw">for</span> (<span class="kw">const</span> call <span class="kw">of</span> toolCalls) {
+    <span class="kw">const</span> result = <span class="kw">await</span> <span class="fn">executeTool</span>(call);
+    messages.<span class="fn">push</span>({ role: <span class="str">'tool_result'</span>, content: result });
+  }
+  <span class="cmt">// 5. 루프 반복 → LLM이 결과를 보고 다음 행동 결정</span>
+}</div>
+
+  <div class="card-grid card-grid-2">
+    <div class="card">
+      <h3 style="color:var(--green)">초기 버전에 있었던 것</h3>
+      <ul style="font-size:.85rem;color:var(--text2);padding-left:1.25rem;line-height:2">
+        <li>while(true) Agentic Loop</li>
+        <li>기본 도구 (검색, 읽기, 쓰기, 실행)</li>
+        <li>기본 권한 (모든 호출에 사용자 확인)</li>
+        <li>스트리밍 응답 출력</li>
+        <li>Git 커밋</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--pink)">이후 추가된 것 (전부 피드백에 의해)</h3>
+      <ul style="font-size:.85rem;color:var(--text2);padding-left:1.25rem;line-height:2">
+        <li>4단계 컨텍스트 압축</li>
+        <li>Error Withholding + Cascade Recovery</li>
+        <li>Streaming Tool Executor</li>
+        <li>5계층 Permission Pipeline</li>
+        <li>Sub-Agent + CacheSafeParams</li>
+        <li>Plugin/Skill/MCP 확장 시스템</li>
+        <li>Auto Mode (ML 분류기)</li>
+        <li>메모리 시스템 (자동 추출/주입)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="quote" style="margin-top:1.5rem">
+    "처음부터 완벽한 하네스를 만들려 하지 마세요. Day 1에는 이 5줄의 루프만 필요합니다.<br>나머지는 전부 프로덕션이 요구할 때 추가하세요."
+  </div>
+</div>
+</section>
+
+<!-- ==================== SLIDE 4: PAIN POINTS ==================== -->
+<section class="slide" id="s4" data-nav="Pain Points">
+<div class="slide-inner">
+  <span class="tag tag-pink">Pain Point Transfer</span>
+  <h2 style="margin-top:.75rem">사용자의 고통을 시스템으로 옮기는 기술</h2>
+  <p>"사용자의 인지 부하를 시스템의 계산 부하로 변환하는 것"이 설계의 본질</p>
+
+  <div class="tabs" id="painTabs">
+    <div class="tab active" data-tab="perm">Permission 학습</div>
+    <div class="tab" data-tab="error">에러 은닉</div>
+    <div class="tab" data-tab="context">컨텍스트 압축</div>
+    <div class="tab" data-tab="latency">레이턴시 은닉</div>
+    <div class="tab" data-tab="memory">자동 메모리</div>
+  </div>
+
+  <div class="tab-content active" id="tab-perm">
+    <div class="quote">"매번 허용 눌러야 해요. 같은 명령어인데 왜 매번 물어보죠?"</div>
+    <h3 style="margin-top:1rem">진화 단계</h3>
+    <div class="flow">
+      <div class="flow-step"><div class="flow-num">1</div><div class="flow-content"><strong>모든 도구에 확인</strong> — 안전하지만 사용성 최악. 10회 호출 = 10번 중단.</div></div>
+      <div class="flow-step"><div class="flow-num">2</div><div class="flow-content"><strong>규칙 학습</strong> — "npm run build" 허용 → 시스템이 "npm run:*" 패턴 추출 → 이후 자동 승인</div></div>
+      <div class="flow-step"><div class="flow-num">3</div><div class="flow-content"><strong>200ms Grace Period</strong> — ML 분류기와 대화상자가 동시에 실행. 사용자가 키를 누르기 전에 분류기가 승인하면 대화상자 없이 실행.</div></div>
+      <div class="flow-step"><div class="flow-num">4</div><div class="flow-content"><strong>Auto Mode</strong> — 2계층 안전 시스템 (서버측 + 클라이언트측 분류기). 0.4% 오탐률. 경험 사용자 40%+ 자동승인.</div></div>
+    </div>
+    <div class="card" style="margin-top:1rem;border-color:var(--accent)">
+      <h3>설계 원칙</h3>
+      <p style="margin:0">보안과 사용성은 트레이드오프가 아니다. <strong>시스템이 사용자로부터 학습</strong>하면 둘 다 향상된다. 핵심: "과거 결정을 미래에 재활용."</p>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-error">
+    <div class="quote">"갑자기 에러가 나요. 뭘 해야 하는지도 모르겠어요."</div>
+    <h3 style="margin-top:1rem">Error Withholding Pattern</h3>
+    <div class="diagram">
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:.75rem;align-items:center">
+        <div class="diagram-box"><div class="box-title">API 에러 발생</div><div class="box-sub">413 / Max Tokens / 429</div></div>
+        <div style="color:var(--text3);font-size:1.5rem">→</div>
+        <div class="diagram-box" style="border-color:var(--orange)"><div class="box-title">Withhold (보류)</div><div class="box-sub">UI에 전달하지 않음</div></div>
+      </div>
+      <div class="diagram-arrow">↓</div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:.75rem;align-items:center">
+        <div class="diagram-box" style="border-color:var(--green)"><div class="box-title">복구 시도</div><div class="box-sub">Cascade: 저비용 → 고비용</div></div>
+        <div style="color:var(--text3);font-size:1.5rem">→</div>
+        <div class="diagram-box" style="border-color:var(--green);background:rgba(52,211,153,.05)"><div class="box-title">성공 시: 에러 폐기</div><div class="box-sub">사용자는 모름</div></div>
+      </div>
+    </div>
+    <div class="card" style="border-color:var(--green)">
+      <h3>핵심 원칙</h3>
+      <p style="margin:0">"<strong>복구에 성공한 에러는 존재하지 않았던 것이다.</strong>"<br>에러를 보여줬을 때 사용자가 할 수 있는 조치가 없다면 → 숨기고 자동 복구.</p>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-context">
+    <div class="quote">"대화가 길어지면 점점 멍해져요. 아까 한 얘기를 잊어버려요."</div>
+    <h3 style="margin-top:1rem">4단계 계층적 압축</h3>
+    <div class="bar-chart">
+      <div class="bar-row"><div class="bar-label">Snip</div><div class="bar-track"><div class="bar-fill blue" style="width:15%">0ms, 무비용</div></div></div>
+      <div class="bar-row"><div class="bar-label">Microcompact</div><div class="bar-track"><div class="bar-fill blue" style="width:20%">&lt;1ms, 무비용</div></div></div>
+      <div class="bar-row"><div class="bar-label">Auto-compact</div><div class="bar-track"><div class="bar-fill orange" style="width:60%">87% 임계값, LLM 비용</div></div></div>
+      <div class="bar-row"><div class="bar-label">Reactive</div><div class="bar-track"><div class="bar-fill pink" style="width:90%">413 에러 시, 최후 수단</div></div></div>
+    </div>
+    <div class="card" style="border-color:var(--orange)">
+      <h3>핵심 원칙</h3>
+      <p style="margin:0">"사용자에게 '대화를 짧게 유지하세요'라고 말하는 것은 <strong>시스템의 한계를 사용자에게 떠넘기는 것</strong>이다." 컨텍스트 관리는 100% 하네스의 책임.</p>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-latency">
+    <div class="quote">"모델이 생각하는 데 20초, 도구 실행 5초, 또 생각하는 데 15초... 40초를 기다려요."</div>
+    <h3 style="margin-top:1rem">Time Overlap: 기다리는 시간을 일하는 시간으로</h3>
+    <div class="diagram">
+      <p style="font-size:.8rem;color:var(--text3);margin-bottom:.75rem"><strong>전통적 (직렬):</strong></p>
+      <div style="display:flex;gap:2px;margin-bottom:1rem">
+        <div style="flex:3;background:var(--accent);border-radius:4px;padding:.3rem .5rem;font-size:.7rem;color:#fff">모델 스트리밍 15-20s</div>
+        <div style="flex:1;background:var(--orange);border-radius:4px;padding:.3rem .5rem;font-size:.7rem;color:#fff">도구 3s</div>
+        <div style="flex:.7;background:var(--green2);border-radius:4px;padding:.3rem .5rem;font-size:.7rem;color:#fff">도구 2s</div>
+      </div>
+      <p style="font-size:.8rem;color:var(--text3);margin-bottom:.75rem"><strong>Streaming Tool Executor (오버랩):</strong></p>
+      <div style="position:relative;height:60px">
+        <div style="position:absolute;top:0;left:0;width:75%;background:var(--accent);border-radius:4px;padding:.3rem .5rem;font-size:.7rem;color:#fff;height:24px">모델 스트리밍 15-20s</div>
+        <div style="position:absolute;top:28px;left:30%;width:20%;background:var(--orange);border-radius:4px;padding:.3rem .5rem;font-size:.7rem;color:#fff;height:24px">도구 1</div>
+        <div style="position:absolute;top:28px;left:52%;width:15%;background:var(--green2);border-radius:4px;padding:.3rem .5rem;font-size:.7rem;color:#fff;height:24px">도구 2</div>
+      </div>
+    </div>
+    <p style="font-size:.85rem;color:var(--text2);margin-top:.5rem">매 턴 <strong>2-5초 절감</strong>. 모델 스트리밍 중 tool_use 블록이 생성되는 즉시 해당 도구 실행을 시작.</p>
+  </div>
+
+  <div class="tab-content" id="tab-memory">
+    <div class="quote">"매번 '테스트는 jest로 해', '커밋은 한글로 써' 같은 걸 반복해야 해요."</div>
+    <h3 style="margin-top:1rem">3계층 자동 메모리</h3>
+    <div class="card-grid card-grid-3">
+      <div class="card"><h3 style="color:var(--green)">자동 추출 (노력 0)</h3><p style="font-size:.8rem;margin:0">대화 종료 시 Forked Agent가 자동으로 유용한 정보를 메모리 파일에 저장. 사용자는 모름.</p></div>
+      <div class="card"><h3 style="color:var(--cyan)">자동 주입 (노력 0)</h3><p style="font-size:.8rem;margin:0">매 턴마다 Sonnet이 관련 메모리 5개를 선별하여 컨텍스트에 주입. 모델 스트리밍 중 프리페치.</p></div>
+      <div class="card"><h3 style="color:var(--accent2)">팀 동기화 (설정만)</h3><p style="font-size:.8rem;margin:0">Git remote 기반 프로젝트 식별. SHA256 델타 동기화. 팀원이 저장한 맥락이 자동 공유.</p></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ==================== SLIDE 5: HARNESS ARCHITECTURE ==================== -->
+<section class="slide" id="s5" data-nav="하네스">
+<div class="slide-inner">
+  <span class="tag tag-blue">Harness Architecture</span>
+  <h2 style="margin-top:.75rem">하네스의 7개 서브시스템</h2>
+  <p>사용자 입력부터 에이전트 제어까지의 전체 흐름</p>
+
+  <div class="diagram" id="harnessFlow">
+    <div style="display:grid;gap:.5rem">
+      <div class="diagram-box" onclick="showHarness('input')" id="hb-input"><div class="box-title">① 입력 처리</div><div class="box-sub">텍스트 → API 형식 + 시스템 프롬프트 + 도구 풀</div></div>
+      <div class="diagram-arrow">↓</div>
+      <div style="background:rgba(99,102,241,.06);border-radius:10px;padding:1rem;border:1px dashed var(--accent)">
+        <div style="text-align:center;font-size:.7rem;color:var(--accent2);margin-bottom:.5rem;font-weight:700">while (true) — Agentic Loop</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+          <div class="diagram-box" onclick="showHarness('context')" id="hb-context"><div class="box-title">④ 컨텍스트</div><div class="box-sub">4단계 압축, 87% 임계값</div></div>
+          <div class="diagram-box" onclick="showHarness('api')" id="hb-api"><div class="box-title">② LLM 호출</div><div class="box-sub">스트리밍 + 동시 도구 실행</div></div>
+          <div class="diagram-box" onclick="showHarness('error')" id="hb-error"><div class="box-title">⑤ 오류 복구</div><div class="box-sub">Withholding + Cascade</div></div>
+          <div class="diagram-box" onclick="showHarness('tools')" id="hb-tools"><div class="box-title">③ 도구 실행</div><div class="box-sub">배치, 동시성, 결과 예산</div></div>
+        </div>
+      </div>
+      <div class="diagram-arrow">↓</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+        <div class="diagram-box" onclick="showHarness('checkpoint')" id="hb-checkpoint"><div class="box-title">⑥ 체크포인트</div><div class="box-sub">세션/파일/비용 영속화</div></div>
+        <div class="diagram-box" onclick="showHarness('exit')" id="hb-exit"><div class="box-title">⑦ 종료 조건</div><div class="box-sub">Stop Hook, Budget, Exit</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="harnessDetail" style="margin-top:1rem"></div>
+</div>
+</section>
+
+<!-- ==================== SLIDE 5.5: SKILLS ==================== -->
+<section class="slide" id="s5b" data-nav="Skills">
+<div class="slide-inner">
+  <span class="tag tag-green">Agent Skills</span>
+  <h2 style="margin-top:.75rem">Agent Skills: 에이전트에게 전문성을 부여하는 개방형 표준</h2>
+  <p>MCP가 "도구 연결"을 표준화했다면, Skills는 "절차적 지식"을 표준화했다</p>
+
+  <div class="card-grid card-grid-2" style="margin:1.5rem 0">
+    <div class="card">
+      <h3>Skills의 3단계 Progressive Disclosure</h3>
+      <div class="flow">
+        <div class="flow-step"><div class="flow-num" style="background:var(--cyan)">L1</div><div class="flow-content"><strong>메타데이터 (~100 토큰)</strong> — 세션 시작 시 name + description만 로드. 에이전트는 스킬의 존재만 인지.</div></div>
+        <div class="flow-step"><div class="flow-num" style="background:var(--accent)">L2</div><div class="flow-content"><strong>핵심 지시사항 (&lt;5K 토큰)</strong> — 작업이 매칭되면 SKILL.md 전체 로드. 구체적 절차 획득.</div></div>
+        <div class="flow-step"><div class="flow-num" style="background:var(--pink)">L3</div><div class="flow-content"><strong>상세 자료 (무제한)</strong> — 실행 중 필요할 때만 scripts/, references/ 로드. 주의력 예산 절약.</div></div>
+      </div>
+      <p style="font-size:.8rem;color:var(--text3);margin-top:.5rem">"번들링 가능한 컨텍스트의 양은 사실상 무제한" — 필요할 때만 로드하므로</p>
+    </div>
+    <div class="card">
+      <h3>Skills vs MCP vs Hooks vs Plugins</h3>
+      <div class="table-wrap" style="border:none">
+      <table>
+        <tr><th>구성요소</th><th>역할</th><th>비유</th></tr>
+        <tr><td><strong>MCP</strong></td><td>어떤 도구를 호출할 수 있는가</td><td>시스템 콜</td></tr>
+        <tr><td><strong style="color:var(--green)">Skills</strong></td><td>그 도구로 이 작업을 어떻게 하는가</td><td>절차 매뉴얼</td></tr>
+        <tr><td><strong>Hooks</strong></td><td>언제 자동으로 로직을 실행하는가</td><td>이벤트 트리거</td></tr>
+        <tr><td><strong>Plugins</strong></td><td>위 모든 것을 하나로 패키징</td><td>설치 패키지</td></tr>
+      </table>
+      </div>
+      <div style="margin-top:.75rem;padding:.5rem .75rem;background:rgba(52,211,153,.06);border-radius:6px;border:1px solid rgba(52,211,153,.2)">
+        <p style="font-size:.8rem;color:var(--green);margin:0"><strong>개방형 표준</strong>: agentskills.io — 33+ 플랫폼 채택 (GitHub Copilot, Codex, Gemini CLI, Cursor, JetBrains, AWS Kiro...)</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:var(--pink)">
+    <h3>Skills 2.0 (2026.03): 추측에서 엔지니어링으로</h3>
+    <p style="font-size:.85rem;margin-bottom:.75rem">"스킬이 제대로 작동하는지 시행착오 외에는 알 방법이 없었다" → 3가지 해법 추가</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem">
+      <div style="text-align:center;padding:.75rem;background:var(--surface2);border-radius:8px">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">📊</div>
+        <div style="font-size:.8rem;font-weight:600">Evals</div>
+        <div style="font-size:.7rem;color:var(--text3)">스킬 ON/OFF 자동 비교</div>
+      </div>
+      <div style="text-align:center;padding:.75rem;background:var(--surface2);border-radius:8px">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">🔀</div>
+        <div style="font-size:.8rem;font-weight:600">Blind A/B</div>
+        <div style="font-size:.7rem;color:var(--text3)">독립 Claude가 블라인드 평가</div>
+      </div>
+      <div style="text-align:center;padding:.75rem;background:var(--surface2);border-radius:8px">
+        <div style="font-size:1.5rem;margin-bottom:.25rem">🎯</div>
+        <div style="font-size:.8rem;font-weight:600">Description 최적화</div>
+        <div style="font-size:.7rem;color:var(--text3)">~20회 반복으로 트리거링 개선</div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ==================== SLIDE 6: KEY PATTERNS ==================== -->
+<section class="slide" id="s6" data-nav="핵심 패턴">
+<div class="slide-inner">
+  <span class="tag tag-green">Key Patterns</span>
+  <h2 style="margin-top:.75rem">가장 가치 있는 3가지 구현 패턴</h2>
+
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion(this)">
+      <span>패턴 1: CacheSafeParams — Multi-Agent 비용 문제의 핵심 해법</span>
+      <span class="arrow">▶</span>
+    </div>
+    <div class="accordion-body">
+      <div class="accordion-body-inner">
+        <p><strong>문제:</strong> Sub-Agent마다 시스템 프롬프트+도구를 새로 전송하면 입력 비용이 에이전트 수에 비례하여 증가</p>
+        <p><strong>해법:</strong> 부모와 자식이 동일한 {시스템 프롬프트, 도구, 모델}을 공유하면 API Prompt Cache 재사용</p>
+        <div class="code-block"><span class="kw">type</span> <span class="fn">CacheSafeParams</span> = {
+  systemPrompt: SystemPrompt    <span class="cmt">// 동일 → 캐시 HIT</span>
+  tools: Tool[]                 <span class="cmt">// 동일 → 캐시 HIT</span>
+  model: string                 <span class="cmt">// 동일 → 캐시 HIT</span>
+  thinkingConfig: ThinkingConfig
+  baseMessages: Message[]       <span class="cmt">// 접두사 동일 → 캐시 HIT</span>
+}
+
+<span class="cmt">// 결과: 자식 에이전트 입력 비용 ~90% 절감</span>
+<span class="cmt">// 이것 없이 Multi-Agent는 비용적으로 실행 불가능</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion(this)">
+      <span>패턴 2: Streaming Tool Executor — 레이턴시를 숨기는 기술</span>
+      <span class="arrow">▶</span>
+    </div>
+    <div class="accordion-body">
+      <div class="accordion-body-inner">
+        <p><strong>핵심:</strong> 모델이 tool_use 블록을 생성하는 즉시 해당 도구의 실행을 시작. 모델 스트리밍 5-30초 윈도우를 활용.</p>
+        <div class="code-block"><span class="kw">for await</span> (<span class="kw">const</span> msg <span class="kw">of</span> <span class="fn">callModel</span>(...)) {
+  <span class="kw">if</span> (msg.type === <span class="str">'tool_use'</span>) {
+    <span class="cmt">// 스트리밍 중 즉시 도구 실행 시작!</span>
+    streamingExecutor.<span class="fn">addTool</span>(msg);
+  }
+}
+<span class="cmt">// 스트리밍 완료 시 대부분의 도구가 이미 완료됨</span></div>
+        <p><strong>동시성 규칙:</strong><br>
+        &bull; 읽기 도구 (Read, Grep): <code>isConcurrencySafe=true</code> → 병렬 실행<br>
+        &bull; 쓰기 도구 (Edit, Write): <code>isConcurrencySafe=false</code> → 직렬 실행<br>
+        &bull; Bash 에러: 형제 도구에 캐스케이드 (다른 도구 타입은 독립)</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion(this)">
+      <span>패턴 3: 5계층 Permission Pipeline — Fail-Closed의 코드화</span>
+      <span class="arrow">▶</span>
+    </div>
+    <div class="accordion-body">
+      <div class="accordion-body-inner">
+        <div class="flow">
+          <div class="flow-step"><div class="flow-num">1</div><div class="flow-content"><strong>도구 가시성 제어</strong> — Deny 규칙 도구를 API 호출 전 제거. 모델은 차단된 도구의 존재 자체를 모름.</div></div>
+          <div class="flow-step"><div class="flow-num">2</div><div class="flow-content"><strong>입력 검증</strong> — Zod 스키마 + 도구별 시맨틱 검증 (Bash: AST 파싱)</div></div>
+          <div class="flow-step"><div class="flow-num">3</div><div class="flow-content"><strong>권한 검사</strong> — 도구별 정책 (BashTool: 패턴매칭+AST+시맨틱분석+샌드박싱+ML분류기)</div></div>
+          <div class="flow-step"><div class="flow-num">4</div><div class="flow-content"><strong>Hook 실행</strong> — PreToolUse 사용자 정의 Hook. 입력 수정, 거부, 허용 가능.</div></div>
+          <div class="flow-step"><div class="flow-num">5</div><div class="flow-content"><strong>컨텍스트별 핸들러</strong> — Interactive(CLI), Coordinator(워커), Swarm(팀), SDK(API)</div></div>
+        </div>
+        <p><strong>Fail-Closed 기본값:</strong> 새 도구는 <code>isConcurrencySafe=false</code>, <code>isReadOnly=false</code>. 개발자가 명시적으로 안전 선언해야 완화.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ==================== SLIDE 7: AUTONOMY ==================== -->
+<section class="slide" id="s7" data-nav="자율성">
+<div class="slide-inner">
+  <span class="tag tag-pink">Autonomy</span>
+  <h2 style="margin-top:.75rem">자율성의 시대: 신뢰를 코드로 설계하기</h2>
+
+  <div class="card-grid card-grid-2" style="margin:1.5rem 0">
+    <div class="card">
+      <h3>500K+ 세션 데이터가 말해주는 것</h3>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-label">자동승인 (신규)</div><div class="bar-track"><div class="bar-fill blue" style="width:20%">~20%</div></div></div>
+        <div class="bar-row"><div class="bar-label">자동승인 (경험)</div><div class="bar-track"><div class="bar-fill green" style="width:42%">40%+</div></div></div>
+        <div class="bar-row"><div class="bar-label">개입 빈도 (신규)</div><div class="bar-track"><div class="bar-fill orange" style="width:5%">5%</div></div></div>
+        <div class="bar-row"><div class="bar-label">개입 빈도 (경험)</div><div class="bar-track"><div class="bar-fill pink" style="width:9%">9%</div></div></div>
+      </div>
+      <p style="font-size:.8rem;color:var(--text3);margin-top:.5rem">"더 많이 맡기면서, 더 전략적으로 개입한다" — 점진적 신뢰 구축의 데이터</p>
+    </div>
+    <div class="card">
+      <h3>안전성 지표</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:.75rem">
+        <div class="stat"><div class="stat-value blue" style="font-size:1.5rem">80%</div><div class="stat-label">안전장치 포함 도구 호출</div></div>
+        <div class="stat"><div class="stat-value green" style="font-size:1.5rem">73%</div><div class="stat-label">사람 개입 유지</div></div>
+        <div class="stat"><div class="stat-value orange" style="font-size:1.5rem">0.8%</div><div class="stat-label">불가역 작업</div></div>
+        <div class="stat"><div class="stat-value pink" style="font-size:1.5rem">2x</div><div class="stat-label">에이전트가 사람보다 자주 확인</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:var(--pink)">
+    <h3>자기 평가 편향 (Self-Evaluation Bias)</h3>
+    <p style="margin-bottom:.75rem">"에이전트는 자신의 평범한 결과를 자신있게 칭찬한다."</p>
+    <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:.5rem;align-items:center;text-align:center">
+      <div class="diagram-box"><div class="box-title">Planner</div><div class="box-sub">Sprint Contract</div></div>
+      <div style="color:var(--text3)">→</div>
+      <div class="diagram-box"><div class="box-title">Generator</div><div class="box-sub">코드 생성</div></div>
+      <div style="color:var(--text3)">→</div>
+      <div class="diagram-box" style="border-color:var(--green)"><div class="box-title">Evaluator</div><div class="box-sub">별도 컨텍스트 검증</div></div>
+    </div>
+    <p style="font-size:.8rem;color:var(--text3);margin-top:.75rem">검증 루프만 추가해도 품질 <strong>2-3배 향상</strong> (Anthropic 데이터)</p>
+  </div>
+</div>
+</section>
+
+<!-- ==================== SLIDE 8: 5 TRANSFER PATTERNS ==================== -->
+<section class="slide" id="s8" data-nav="5대 패턴">
+<div class="slide-inner">
+  <span class="tag tag-green">Design Framework</span>
+  <h2 style="margin-top:.75rem">5가지 Pain Point Transfer 패턴</h2>
+  <p>새로운 기능을 설계할 때마다 이 5가지 질문을 던져라</p>
+
+  <div class="card-grid card-grid-2" style="margin-top:1.5rem">
+    <div class="card" style="border-left:3px solid var(--accent2)">
+      <h3 style="color:var(--accent2)">1. Silent Success</h3>
+      <p style="font-size:.85rem;margin-bottom:.5rem">"성공한 작업은 보이지 않아야 한다"</p>
+      <p style="font-size:.8rem;color:var(--text3);margin:0"><strong>질문:</strong> 이 작업이 성공했을 때 사용자에게 알릴 필요가 있는가?<br><strong>적용:</strong> Error Withholding, 자동 메모리, 자동 체크포인트, 캐시 최적화</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--green)">
+      <h3 style="color:var(--green)">2. Progressive Learning</h3>
+      <p style="font-size:.85rem;margin-bottom:.5rem">"과거 결정에서 미래를 예측한다"</p>
+      <p style="font-size:.8rem;color:var(--text3);margin:0"><strong>질문:</strong> 사용자가 이전에 비슷한 결정을 한 적이 있는가?<br><strong>적용:</strong> Permission 학습, 규칙 추출, 메모리, CLAUDE.md 계층</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--cyan)">
+      <h3 style="color:var(--cyan)">3. Time Overlap</h3>
+      <p style="font-size:.85rem;margin-bottom:.5rem">"대기 시간을 작업 시간으로 변환"</p>
+      <p style="font-size:.8rem;color:var(--text3);margin:0"><strong>질문:</strong> 기다리는 동안 미리 할 수 있는 작업이 있는가?<br><strong>적용:</strong> Parallel Prefetch, Streaming Tool Executor, Memory Prefetch</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--orange)">
+      <h3 style="color:var(--orange)">4. Information Layering</h3>
+      <p style="font-size:.85rem;margin-bottom:.5rem">"모든 정보를 보여주는 것 = 아무것도 안 주는 것"</p>
+      <p style="font-size:.8rem;color:var(--text3);margin:0"><strong>질문:</strong> 이 정보를 사용자가 항상 볼 필요가 있는가?<br><strong>적용:</strong> Progressive Disclosure, 결과 접기, 에러 자르기, Ctrl+O 확장</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--pink);grid-column:1/-1">
+      <h3 style="color:var(--pink)">5. Invisible Safety</h3>
+      <p style="font-size:.85rem;margin-bottom:.5rem">"보안의 대부분은 사용자에게 보이지 않아야 한다"</p>
+      <p style="font-size:.8rem;color:var(--text3);margin:0"><strong>질문:</strong> 이 보안 조치가 사용자 워크플로우를 중단하는가? → 중단한다면 자동화/은닉 방법을 찾아라.<br><strong>적용:</strong> 도구 가시성 제어, Fail-Closed 기본값, 다층 Bash 보안, ML 분류기, 감사 추적</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ==================== SLIDE 9: ROADMAP ==================== -->
+<section class="slide" id="s9" data-nav="로드맵">
+<div class="slide-inner">
+  <span class="tag tag-blue">Implementation</span>
+  <h2 style="margin-top:.75rem">구축 로드맵: Phase 1-4</h2>
+
+  <div class="card-grid card-grid-2" style="margin-top:1.5rem">
+    <div class="card" style="border-top:3px solid var(--accent2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+        <h3 style="margin:0">Phase 1: Foundation</h3>
+        <span class="tag tag-blue">4-6주</span>
+      </div>
+      <ul style="font-size:.8rem;color:var(--text2);padding-left:1.25rem;line-height:2.2">
+        <li>while(true) Agentic Loop</li>
+        <li>3-5개 핵심 도구</li>
+        <li>기본 권한 (모든 도구에 확인)</li>
+        <li>스트리밍 응답 출력</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--green)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+        <h3 style="margin:0">Phase 2: Resilience</h3>
+        <span class="tag tag-green">4-6주</span>
+      </div>
+      <ul style="font-size:.8rem;color:var(--text2);padding-left:1.25rem;line-height:2.2">
+        <li>컨텍스트 압축 (자동, 2단계+)</li>
+        <li>Error Withholding + Cascade</li>
+        <li>API 재시도 (은닉 + FG/BG 분리)</li>
+        <li>비용 추적</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--orange)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+        <h3 style="margin:0">Phase 3: Scale</h3>
+        <span class="tag tag-orange">6-8주</span>
+      </div>
+      <ul style="font-size:.8rem;color:var(--text2);padding-left:1.25rem;line-height:2.2">
+        <li>Sub-Agent (CacheSafeParams)</li>
+        <li>MCP 클라이언트 통합</li>
+        <li>Streaming Tool Executor</li>
+        <li>권한 학습 (규칙 추출)</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--pink)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+        <h3 style="margin:0">Phase 4: Autonomy</h3>
+        <span class="tag tag-pink">지속적</span>
+      </div>
+      <ul style="font-size:.8rem;color:var(--text2);padding-left:1.25rem;line-height:2.2">
+        <li>ML 기반 자동 승인</li>
+        <li>Plugin/Skill 확장 시스템</li>
+        <li>검증 분리 (Evaluator)</li>
+        <li>OpenTelemetry 관찰가능성</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ==================== SLIDE 10: PRINCIPLES ==================== -->
+<section class="slide" id="s10" data-nav="원칙">
+<div class="slide-inner" style="text-align:center">
+  <h2><span class="gradient-text">10가지 설계 원칙</span></h2>
+  <p style="margin-bottom:2rem">Claude Code 14개월 진화에서 추출한 핵심</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:.75rem;text-align:left">
+    <div class="card" style="padding:1rem"><span style="color:var(--accent2);font-weight:800;font-family:var(--font-mono)">01</span> <span style="font-size:.85rem">최소 하네스로 시작하라</span></div>
+    <div class="card" style="padding:1rem"><span style="color:var(--accent2);font-weight:800;font-family:var(--font-mono)">02</span> <span style="font-size:.85rem">Pain Point를 시스템으로 옮겨라</span></div>
+    <div class="card" style="padding:1rem"><span style="color:var(--accent2);font-weight:800;font-family:var(--font-mono)">03</span> <span style="font-size:.85rem">에러 처리를 계층적으로 설계하라</span></div>
+    <div class="card" style="padding:1rem"><span style="color:var(--accent2);font-weight:800;font-family:var(--font-mono)">04</span> <span style="font-size:.85rem">컨텍스트는 가장 비싼 자원이다</span></div>
+    <div class="card" style="padding:1rem"><span style="color:var(--accent2);font-weight:800;font-family:var(--font-mono)">05</span> <span style="font-size:.85rem">캐시 공유가 Multi-Agent 비용을 해결한다</span></div>
+    <div class="card" style="padding:1rem"><span style="color:var(--accent2);font-weight:800;font-family:var(--font-mono)">06</span> <span style="font-size:.85rem">검증을 생성과 분리하라</span></div>
+    <div class="card" style="padding:1rem"><span style="color:var(--accent2);font-weight:800;font-family:var(--font-mono)">07</span> <span style="font-size:.85rem">자율성은 스펙트럼이다</span></div>
+    <div class="card" style="padding:1rem"><span style="color:var(--accent2);font-weight:800;font-family:var(--font-mono)">08</span> <span style="font-size:.85rem">파일시스템이 메모리다</span></div>
+    <div class="card" style="padding:1rem"><span style="color:var(--accent2);font-weight:800;font-family:var(--font-mono)">09</span> <span style="font-size:.85rem">프로토콜 표준을 채택하라 (MCP + Skills)</span></div>
+    <div class="card" style="padding:1rem"><span style="color:var(--accent2);font-weight:800;font-family:var(--font-mono)">10</span> <span style="font-size:.85rem">하네스는 지속적으로 재평가하라</span></div>
+  </div>
+
+  <div style="margin-top:2.5rem;padding:2rem;background:var(--surface);border:1px solid var(--border);border-radius:14px;text-align:center">
+    <p style="font-size:1.2rem;font-weight:700;margin-bottom:.5rem;color:var(--text)">
+      "사용자는 <span style="color:var(--accent2)">'무엇을 할 것인가'</span>에만 집중하고,<br>
+      <span style="color:var(--cyan)">'어떻게 할 것인가'</span>의 모든 마찰은 시스템이 흡수한다."
+    </p>
+    <p style="color:var(--text3);font-size:.85rem;margin:0">사용자의 뇌는 비싸다. 시스템의 CPU는 싸다. 모든 설계 결정을 이 렌즈로 검증하라.</p>
+  </div>
+</div>
+</section>
+
+<script>
+// ===== NAV =====
+const slides=document.querySelectorAll('.slide');
+const navItems=document.getElementById('navItems');
+const navProgress=document.getElementById('navProgress');
+slides.forEach((s,i)=>{
+  const d=document.createElement('div');
+  d.className='nav-item';d.textContent=s.dataset.nav;
+  d.onclick=()=>s.scrollIntoView({behavior:'smooth'});
+  navItems.appendChild(d);
+});
+
+let lastScroll=0;const nav=document.getElementById('nav');
+window.addEventListener('scroll',()=>{
+  const st=window.scrollY;
+  nav.classList.toggle('hidden',st>lastScroll&&st>100);
+  lastScroll=st;
+  // Progress
+  const h=document.documentElement.scrollHeight-window.innerHeight;
+  navProgress.style.width=((st/h)*100)+'%';
+  // Active nav + slide visibility
+  slides.forEach((s,i)=>{
+    const r=s.getBoundingClientRect();
+    const vis=r.top<window.innerHeight*.75&&r.bottom>0;
+    s.classList.toggle('visible',vis);
+    navItems.children[i].classList.toggle('active',r.top<window.innerHeight*.5&&r.bottom>window.innerHeight*.2);
+  });
+  // Timeline items
+  document.querySelectorAll('.timeline-item').forEach(t=>{
+    if(t.getBoundingClientRect().top<window.innerHeight*.85)t.classList.add('visible');
+  });
+},{passive:true});
+
+// Initial visibility
+setTimeout(()=>{slides[0].classList.add('visible')},100);
+
+// ===== ANIMATED COUNTERS =====
+let counted=false;
+const observer=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting&&!counted){
+      counted=true;
+      animateCount('animLines',0,800000,'~','K',1000);
+      animateCount('animTools',0,40,null,'+',1);
+      animateCount('animLayers',0,5,null,'',1);
+      animateCount('animRevenue',0,1,'$','B',1);
+    }
+  });
+},{threshold:.5});
+observer.observe(document.getElementById('s0'));
+
+function animateCount(id,start,end,prefix,suffix,step){
+  const el=document.getElementById(id);
+  let v=start;const dur=1500;const steps=Math.ceil(dur/30);const inc=(end-start)/steps;
+  const timer=setInterval(()=>{
+    v+=inc;if(v>=end){v=end;clearInterval(timer)}
+    let display=step>=1000?Math.round(v/1000)+'K':Math.round(v);
+    el.textContent=(prefix||'')+display+(suffix||'');
+  },30);
+}
+
+// ===== TABS =====
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    const parent=t.closest('.slide-inner');
+    parent.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    parent.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('tab-'+t.dataset.tab).classList.add('active');
+  };
+});
+
+// ===== ACCORDION =====
+function toggleAccordion(header){
+  const wasOpen=header.classList.contains('open');
+  // Close all
+  document.querySelectorAll('.accordion-header').forEach(h=>{h.classList.remove('open');h.nextElementSibling.classList.remove('open')});
+  if(!wasOpen){header.classList.add('open');header.nextElementSibling.classList.add('open')}
+}
+
+// ===== HARNESS DETAIL =====
+const harnessData={
+  input:{title:'① 입력 처리 하네스',content:`<p>사용자 텍스트가 API 호출이 되기까지:</p>
+<ol style="font-size:.85rem;line-height:2;padding-left:1.25rem;color:var(--text2)">
+<li><strong>입력 정규화</strong> — string → ContentBlockParam[]</li>
+<li><strong>첨부 수집</strong> — 파일 변경, 메모리, 태스크 알림</li>
+<li><strong>시스템 프롬프트 조립</strong> — 기본 + CLAUDE.md 계층 + Git + 메모리 지시</li>
+<li><strong>도구 풀 구성</strong> — Built-in + MCP - Deny 규칙, 안정 정렬</li>
+<li><strong>CacheSafeParams 스냅샷</strong> — Sub-Agent 캐시 공유용</li>
+</ol>`},
+  context:{title:'④ 컨텍스트 관리 하네스',content:`<p>매 턴마다 토큰 예산을 모니터링:</p>
+<ul style="font-size:.85rem;line-height:2;padding-left:1.25rem;color:var(--text2)">
+<li><strong>87%</strong> → Auto-compact 트리거 (Forked Agent 요약)</li>
+<li><strong>90%</strong> → Warning UI</li>
+<li><strong>95%</strong> → Error UI</li>
+<li><strong>100%</strong> → API 413 → Error Withholding → Cascade Recovery</li>
+<li><strong>Circuit Breaker</strong> — 연속 3회 실패 시 재시도 중단</li>
+</ul>`},
+  api:{title:'② LLM API 호출',content:`<p>스트리밍 + 동시 도구 실행의 핵심:</p>
+<ul style="font-size:.85rem;line-height:2;padding-left:1.25rem;color:var(--text2)">
+<li>모델 스트리밍 중 tool_use 블록 감지 → <strong>즉시 도구 실행 시작</strong></li>
+<li>Memory Prefetch: 스트리밍 중 Haiku sidequery (97% 완료)</li>
+<li>Skill Discovery Prefetch: 병렬 실행</li>
+<li>Error Withholding: 413/max_tokens 감지 시 UI에 전달하지 않음</li>
+</ul>`},
+  error:{title:'⑤ 오류 복구 하네스',content:`<p>Cascade Recovery + Guard Flags:</p>
+<ul style="font-size:.85rem;line-height:2;padding-left:1.25rem;color:var(--text2)">
+<li><strong>413</strong>: Collapse Drain → Reactive Compact → Surface (hasAttemptedReactiveCompact 플래그)</li>
+<li><strong>Max Tokens</strong>: 8K→64K 확장 → 복구 메시지 ×3 → Surface (count ≤ 3)</li>
+<li><strong>429/529</strong>: 처음 3회 은닉 재시도 → FG/BG 분리 → 모델 Fallback</li>
+<li><strong>Death Spiral 방지</strong>: API 에러 시 Stop Hook 건너뜀</li>
+</ul>`},
+  tools:{title:'③ 도구 실행 하네스',content:`<p>배치, 동시성, 결과 예산:</p>
+<ul style="font-size:.85rem;line-height:2;padding-left:1.25rem;color:var(--text2)">
+<li><strong>isConcurrencySafe=true</strong> → 병렬 배치 (Read, Grep, Glob)</li>
+<li><strong>isConcurrencySafe=false</strong> → 직렬 배치 (Edit, Write, Bash)</li>
+<li><strong>최대 동시성</strong>: CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY (기본 10)</li>
+<li><strong>결과 예산</strong>: 100KB 초과 → 디스크 이관 + 참조 전달</li>
+<li><strong>Bash 에러 캐스케이드</strong>: 형제 도구에 전파 (다른 타입은 독립)</li>
+</ul>`},
+  checkpoint:{title:'⑥ 체크포인트 하네스',content:`<p>이중 체크포인트 + 비용 영속화:</p>
+<ul style="font-size:.85rem;line-height:2;padding-left:1.25rem;color:var(--text2)">
+<li><strong>세션 히스토리</strong>: ~/.claude/history.jsonl (JSONL 비동기 기록)</li>
+<li><strong>파일 히스토리</strong>: .claude/.file-history/ (매 메시지마다, 최대 100개)</li>
+<li><strong>대형 붙여넣기</strong>: >1KB → SHA256 해시 + 외부 저장소</li>
+<li><strong>비용 상태</strong>: 세션 종료 시 영속화, 복원 시 세션 ID 매칭</li>
+</ul>`},
+  exit:{title:'⑦ 종료 조건 하네스',content:`<p>11개 Exit + Stop Hook 검증 루프:</p>
+<ul style="font-size:.85rem;line-height:2;padding-left:1.25rem;color:var(--text2)">
+<li><strong>정상</strong>: completed, max_turns, stop_hook_prevented</li>
+<li><strong>오류</strong>: model_error, prompt_too_long, image_error, blocking_limit</li>
+<li><strong>중단</strong>: aborted_streaming, aborted_tools, hook_stopped</li>
+<li><strong>Stop Hook</strong>: 사용자 정의 검증 → 실패 시 에러를 메시지로 주입 → 루프 계속</li>
+<li><strong>Token Budget</strong>: 90% 미달 시 nudge 주입 → 조기 종료 방지</li>
+</ul>`}
+};
+
+function showHarness(key){
+  document.querySelectorAll('#harnessFlow .diagram-box').forEach(b=>b.classList.remove('active'));
+  const el=document.getElementById('hb-'+key);if(el)el.classList.add('active');
+  const d=harnessData[key];
+  document.getElementById('harnessDetail').innerHTML=`<div class="card" style="animation:fadeIn .3s;border-color:var(--accent)"><h3>${d.title}</h3>${d.content}</div>`;
+}
+
+// ===== KEYBOARD NAV =====
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown'){
+    e.preventDefault();
+    const active=[...slides].findIndex(s=>s.getBoundingClientRect().top>-window.innerHeight*.3&&s.getBoundingClientRect().top<window.innerHeight*.5);
+    if(active<slides.length-1)slides[active+1].scrollIntoView({behavior:'smooth'});
+  }
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp'){
+    e.preventDefault();
+    const active=[...slides].findIndex(s=>s.getBoundingClientRect().top>-window.innerHeight*.3&&s.getBoundingClientRect().top<window.innerHeight*.5);
+    if(active>0)slides[active-1].scrollIntoView({behavior:'smooth'});
+  }
+});
+</script>
+</body>
+</html>
