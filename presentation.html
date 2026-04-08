@@ -196,7 +196,7 @@ tr:hover td{background:rgba(99,102,241,.03)}
     <div class="stat"><div class="stat-value blue" id="animLines">0</div><div class="stat-label">Lines of Code</div></div>
     <div class="stat"><div class="stat-value green" id="animTools">0</div><div class="stat-label">Built-in Tools</div></div>
     <div class="stat"><div class="stat-value orange" id="animLayers">0</div><div class="stat-label">Context Compression Stages</div></div>
-    <div class="stat"><div class="stat-value pink" id="animRevenue">0</div><div class="stat-label">Revenue in 6mo</div></div>
+    <div class="stat"><div class="stat-value pink" id="animRevenue">0</div><div class="stat-label">Exit Reasons</div></div>
   </div>
   <p style="color:var(--text3);font-size:.8rem">
     <span class="highlight">Agent = Model + Harness</span> &mdash; 모델은 API다. <strong>하네스가 제품이다.</strong>
@@ -215,7 +215,7 @@ tr:hover td{background:rgba(99,102,241,.03)}
     <div class="stat"><div class="stat-value orange">92%</div><div class="stat-label">비용 초과 경험 (IDC)</div></div>
     <div class="stat"><div class="stat-value pink">40%</div><div class="stat-label">파일럿 6개월 내 실패 (Gartner)</div></div>
     <div class="stat"><div class="stat-value orange">17x</div><div class="stat-label">Multi-Agent 오류 증폭 (DeepMind)</div></div>
-    <div class="stat"><div class="stat-value green">$1B</div><div class="stat-label">Claude Code 6개월 매출</div></div>
+    <div class="stat"><div class="stat-value green">7+10</div><div class="stat-label">Continue + Exit 사유</div></div>
   </div>
 
   <div class="quote">
@@ -286,8 +286,8 @@ tr:hover td{background:rgba(99,102,241,.03)}
     </div>
     <div class="timeline-item major" data-delay="700">
       <div class="timeline-date">2025.12</div>
-      <div class="timeline-title">$1B + AAIF + Bun + Skills 오픈 표준</div>
-      <div class="timeline-desc">6개월 만에 연간 $1B. MCP를 Linux Foundation에 기부. Bun 인수. Agent Skills를 agentskills.io 개방형 표준으로 발표. 33+ 플랫폼 채택.</div>
+      <div class="timeline-title">AAIF + Bun + Skills 오픈 표준</div>
+      <div class="timeline-desc">MCP를 Linux Foundation AAIF에 기부. Bun 런타임 인수 (feature flag 기반 Dead Code Elimination). Agent Skills를 agentskills.io 개방형 표준으로 발표. 33+ 플랫폼 채택.</div>
     </div>
     <div class="timeline-item" data-delay="800">
       <div class="timeline-date">2026.02</div>
@@ -931,7 +931,7 @@ const observer=new IntersectionObserver(entries=>{
       animateCount('animLines',0,513000,'~','K',1000);
       animateCount('animTools',0,43,null,'',1);
       animateCount('animLayers',0,6,null,'',1);
-      animateCount('animRevenue',0,1,'$','B',1);
+      animateCount('animRevenue',0,10,null,'',1);
     }
   });
 },{threshold:.5});

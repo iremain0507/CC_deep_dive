@@ -10,7 +10,7 @@
 
 ## 서문: 왜 Claude Code인가
 
-2025년 2월 연구 프리뷰로 시작하여 14개월 만에 연간 $1B+ 매출을 달성한 Claude Code는, 현존하는 가장 성숙한 Production-Grade Agentic Coding System이다.
+2025년 2월 연구 프리뷰로 시작하여 14개월 만에 가장 널리 사용되는 Production-Grade Agentic Coding System으로 자리잡은 Claude Code는, Agentic LLM System의 설계 원칙을 가장 잘 보여주는 참조 구현체다.
 
 이 시스템은 단순한 "LLM + 도구 호출"이 아니다. **~513K줄의 TypeScript(src/ 기준), 43개 도구 디렉토리, Sandbox + 5계층 권한 시스템, 5단계 컨텍스트 압축 + Reactive Recovery, 7가지 Continue 사유와 10가지 Exit 사유를 가진 상태 머신 기반 Agentic Loop**를 갖춘 완전한 에이전트 하네스(Harness)다.
 
@@ -254,18 +254,100 @@ Phase 3 (자동 압축): 고정 토큰 버퍼 기반 트리거
   → 200K 모델에서 ~167K 토큰 ≈ 83.5%, 1M 모델에서 ~967K ≈ 96.7%
   → 비율이 아닌 고정 버퍼이므로, 컨텍스트 크기에 따라 트리거 비율이 달라짐
 
-Phase 4 (5단계 계층적 컨텍스트 관리):
-  Pre-API-call pipeline (query.ts, 매 루프 반복마다 순차 실행):
-  1. Tool Result Budget: 대형 도구 결과를 디스크 참조로 교체
-  2. Snip: 오래된 메시지 그룹 제거 (feature-gated: HISTORY_SNIP)
-  3. Microcompact: 오래된 Read/Bash/Grep 결과를 "[Old tool result cleared]"로 교체
-  4. Context Collapse: 메시지 그룹 축약 (autocompact 전에 실행 — 성공하면 autocompact 불필요)
-  5. Auto-compact: forked Agent로 전체 대화 요약 (threshold 초과 시)
-  Post-API-call recovery:
-  6. Reactive Compact: API 413 에러 시 긴급 요약 (1회 시도, feature-gated: REACTIVE_COMPACT)
-  → Circuit Breaker: MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES=3 연속 실패 시 세션 내 중단
-  → Post-compact 복원: 최근 파일 5개(POST_COMPACT_MAX_FILES_TO_RESTORE=5)
-    + 스킬(25K 토큰 예산, 스킬당 5K 상한) + MCP/에이전트 정보
+Phase 4 (5단계 계층적 컨텍스트 관리 + Reactive Recovery):
+
+query.ts의 매 Agentic Loop 반복마다, API 호출 전에 5단계 파이프라인이 순차 실행된다.
+각 단계는 이전 단계의 결과를 받아 처리하며, 순서에는 의미가 있다.
+
+┌──────────────────────────────────────────────────────────────────┐
+│ Stage 1: Tool Result Budget (query.ts:379)                       │
+│                                                                  │
+│ 무엇: 이전 턴의 도구 결과 중 크기가 큰 것을 디스크 파일로 교체     │
+│ 트리거: 매 루프 반복마다 자동 실행                                │
+│ 동작: applyToolResultBudget()가 ContentReplacementState를 확인    │
+│       → DEFAULT_MAX_RESULT_SIZE_CHARS(50,000자) 초과 결과를       │
+│         디스크에 영속화하고 참조(파일 경로)로 교체                  │
+│ 이유: 이 결과가 다음 API 호출에서 매번 재전송되므로,               │
+│       100KB 결과 × 20회 호출 = 2MB의 불필요한 토큰 비용 제거       │
+│ 중요: Microcompact보다 먼저 실행 — "cached MC는 tool_use_id로만   │
+│       작동하므로 내용 교체가 보이지 않는다" (query.ts:370 코멘트)   │
+│                                                                  │
+│ Stage 2: Snip (query.ts:401, feature-gated: HISTORY_SNIP)        │
+│                                                                  │
+│ 무엇: 오래된 메시지 그룹을 경계 마커 기반으로 통째로 제거          │
+│ 트리거: snipCompactIfNeeded()가 메시지 배열을 분석                 │
+│ 동작: 대화 히스토리에서 특정 경계 마커 이전의 메시지 그룹을 제거    │
+│       → snipTokensFreed를 autocompact에 전달 (임계값 조정)        │
+│ 비용: 0ms (메시지 배열 조작만)                                    │
+│ 이유: 가장 저비용 방법으로 컨텍스트 확보. Microcompact보다 먼저     │
+│       실행하여, snip된 메시지의 tool_use_id가 MC에 전달되지 않도록  │
+│                                                                  │
+│ Stage 3: Microcompact (query.ts:412)                             │
+│                                                                  │
+│ 무엇: 오래된 도구 결과(Read/Bash/Grep)의 내용을 짧은 마커로 교체  │
+│ 트리거: 매 루프 반복마다 deps.microcompact() 호출                 │
+│ 동작 (두 가지 모드):                                             │
+│   일반 MC: 오래된 tool_result 블록의 내용을                       │
+│           "[Old tool result cleared — re-run if needed]"로 교체   │
+│   Cached MC (feature: CACHED_MICROCOMPACT):                      │
+│           API의 cache_edits를 통한 서버측 삭제 (ant-only)         │
+│           → pendingCacheEdits를 생성하여 API 호출에 첨부           │
+│ 비용: <1ms (문자열 교체만)                                        │
+│ 이유: 도구 결과의 내용은 이미 모델이 처리했으므로,                 │
+│       재전송할 필요가 없다. tool_use_id 구조는 유지하여            │
+│       API Prompt Cache의 바이트 정렬을 보존한다.                  │
+│                                                                  │
+│ Stage 4: Context Collapse (query.ts:440, feature: CONTEXT_COLLAPSE)│
+│                                                                  │
+│ 무엇: 인접한 메시지 그룹을 축약된 요약으로 교체                    │
+│ 트리거: applyCollapsesIfNeeded()가 축약 가능한 그룹을 탐지        │
+│ 동작: staged collapse를 drain하여 메시지 그룹을 축약               │
+│       → "collapse가 autocompact 임계값 아래로 내려가면,            │
+│         autocompact는 no-op이 되어 세분화된 컨텍스트를 보존"       │
+│         (query.ts:429 코멘트)                                     │
+│ 이유: Auto-compact(전체 요약)보다 정밀한 제어 가능.               │
+│       개별 메시지 그룹 단위로 축약하므로 정보 손실이 적다.          │
+│       Auto-compact 전에 실행하여, 가능하면 Auto-compact를 피한다.  │
+│                                                                  │
+│ Stage 5: Auto-compact (query.ts:453)                             │
+│                                                                  │
+│ 무엇: 전체 대화를 Forked Agent가 요약하여 압축                    │
+│ 트리거: shouldAutoCompact()가 true일 때                           │
+│   → 현재 토큰 수 > (effectiveWindow - AUTOCOMPACT_BUFFER_TOKENS)  │
+│   → effectiveWindow = contextWindow - min(maxOutputTokens, 20K)   │
+│   → 즉, 200K 모델에서 약 167K 토큰 초과 시 트리거               │
+│ 동작: Forked Agent가 부모의 CacheSafeParams를 공유하면서          │
+│       대화를 요약 → CompactBoundaryMessage 삽입                   │
+│       → 경계 이전 메시지는 다음 API 호출에서 제외                 │
+│ 비용: LLM 호출 비용 (Forked Agent = 캐시 공유로 ~90% 절감)       │
+│ 후처리: POST_COMPACT_MAX_FILES_TO_RESTORE=5개 파일 재주입         │
+│         + POST_COMPACT_SKILLS_TOKEN_BUDGET=25K 토큰 스킬 재주입   │
+│         + MCP/에이전트 정보 delta attachment                      │
+│ 안전장치: MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES=3 연속 실패 시 중단 │
+│                                                                  │
+│ [API 호출 수행]                                                  │
+│                                                                  │
+│ Stage 6 (비상): Reactive Compact (query.ts:1119, feature: REACTIVE)│
+│                                                                  │
+│ 무엇: API가 413(prompt-too-long)을 반환했을 때 비상 압축           │
+│ 트리거: API 응답에서 413 또는 media size 에러 감지 시              │
+│   → Error Withholding으로 사용자에게 알리지 않고 보류              │
+│   → 먼저 Context Collapse drain 시도 (query.ts:1090)             │
+│   → drain이 불충분하면 Reactive Compact 시도                     │
+│ 동작: tryReactiveCompact()로 전체 대화를 즉시 요약                │
+│ 복구 성공: withheld 에러 폐기 → 사용자는 에러 발생을 모름         │
+│ 복구 실패: withheld 에러를 표출 → 'prompt_too_long' 종료          │
+│ 안전장치: hasAttemptedReactiveCompact=true → 재시도 방지           │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+실행 순서가 중요한 이유:
+  - Tool Result Budget → Microcompact: MC는 tool_use_id로만 작동하므로
+    내용 교체를 인식하지 못함 → 순서 무관하지만 안전성 위해 먼저 실행
+  - Snip → Microcompact: snip된 메시지의 tool_use_id가 MC에 전달되지 않도록
+  - Context Collapse → Auto-compact: collapse가 충분하면 autocompact 불필요
+    → 세분화된 컨텍스트 보존 (전체 요약보다 정보 손실 적음)
+  - Reactive는 API 에러 후에만 실행 (정상 흐름에서는 절대 실행되지 않음)
 ```
 
 **이 진화가 보여주는 것**: "사용자에게 시스템의 한계를 관리하라고 요청하는 것"은 설계 실패다. 컨텍스트 윈도우 관리는 100% 하네스의 책임이다.
@@ -460,6 +542,105 @@ done
 | **과도한 CLAUDE.md** | 규칙이 노이즈에 묻힘 | 무자비하게 가지치기 |
 | **신뢰-후-검증 갭** | 그럴듯하지만 엣지 케이스 미처리 | 항상 검증 수단 제공 |
 | **무한 탐색** | 범위 없는 조사가 컨텍스트 소비 | 범위 좁히기 또는 서브에이전트 |
+
+## 자동 메모리 시스템: 반복 지시를 시스템으로 옮기는 방법
+
+Claude Code의 메모리 시스템은 세 가지 메커니즘이 결합되어 작동한다.
+
+### 메커니즘 1: 자동 메모리 추출 (extractMemories.ts)
+
+**동작 방식**: 모델이 도구 호출 없이 응답을 완료할 때마다(즉, 턴이 끝날 때마다), 백그라운드에서 Forked Agent가 대화 내용을 분석하여 기억할 가치가 있는 정보를 자동으로 파일에 저장한다.
+
+```
+트리거 조건 (extractMemories.ts:329):
+  1. 모델 응답이 도구 호출 없이 완료됨 (Stop Hook 단계)
+  2. isAutoMemoryEnabled() === true (사용자 설정)
+  3. 대화에서 사용자가 이미 메모리를 직접 기록하지 않았을 것
+     → hasMemoryWritesSince() === false (메인 에이전트가 Write/Edit로
+       메모리 파일을 수정했으면, forked 추출은 중복이므로 건너뜀)
+  4. 마지막 추출 이후 충분한 턴이 경과했을 것
+     → turnsSinceLastExtraction >= tengu_bramble_lintel (기본값 1)
+
+Forked Agent의 도구 권한 (createAutoMemCanUseTool):
+  ├─ 허용: Read, Grep, Glob (무제한 읽기)
+  ├─ 허용: Write, Edit (메모리 디렉토리 내부 경로만!)
+  │        → isAutoMemPath(filePath) === true인 경로만 쓰기 가능
+  ├─ 허용: Bash (읽기 전용 명령어만)
+  └─ 거부: 그 외 모든 도구 (실수로 코드 수정 방지)
+
+저장 위치: ~/.claude/projects/<프로젝트경로>/memory/
+```
+
+**예시**: 사용자가 "이 프로젝트에서 테스트는 항상 vitest로 해줘"라고 말하면:
+
+```markdown
+# 자동 추출된 메모리 파일: feedback_testing.md
+---
+name: testing-preference-vitest
+description: 사용자가 vitest를 선호하며 jest를 사용하지 않기를 원함
+type: feedback
+---
+이 프로젝트에서 테스트 프레임워크로 vitest를 사용할 것.
+**Why:** 사용자가 명시적으로 vitest 사용을 요청함.
+**How to apply:** 테스트 파일 생성/수정 시 vitest API 사용,
+jest 관련 import나 설정을 제안하지 말 것.
+```
+
+### 메커니즘 2: 자동 메모리 주입 (findRelevantMemories.ts)
+
+**동작 방식**: 매 턴 시작 시, 모델 스트리밍과 동시에 관련 메모리를 검색하여 컨텍스트에 주입한다.
+
+```
+트리거: 매 턴의 Agentic Loop 시작 (query.ts:301)
+  → startRelevantMemoryPrefetch() 호출
+
+동작:
+  1. 메모리 디렉토리의 모든 파일 스캔 (memoryScan.ts)
+  2. 각 파일의 frontmatter에서 name + description 추출
+  3. Haiku sideQuery로 현재 대화와 가장 관련 있는 메모리 5개 선별
+  4. 선별된 메모리 파일의 내용을 컨텍스트에 attachment로 주입
+  5. 이미 표출된 메모리는 중복 제거 (alreadySurfaced 세트)
+
+타이밍: 모델 스트리밍 중 백그라운드로 실행
+  → 97%의 경우 모델 스트리밍 윈도우 내 완료 → 추가 대기 0ms
+  → settled되지 않았으면 건너뜀 (절대 차단하지 않음)
+```
+
+### 메커니즘 3: 4가지 메모리 유형 분류 체계 (memdir.ts:189)
+
+메모리는 닫힌 4가지 유형으로 분류된다. 이 분류가 중요한 이유: 무엇이든 기억하면 노이즈가 축적되어 Context Distraction을 유발하기 때문.
+
+```
+type: user — 사용자의 역할, 선호, 지식 수준
+  예: "시니어 백엔드 엔지니어, React 초보, Go 10년 경력"
+  저장 시점: 사용자 정보를 학습했을 때
+  활용: 응답 난이도와 설명 방식 조정
+
+type: feedback — 접근 방식에 대한 교정/확인
+  예: "이 프로젝트에서 mock 테스트 금지 — 작년에 mock이 프로덕션 마이그레이션 실패를 숨김"
+  저장 시점: 사용자가 "하지 마" 또는 "좋아, 계속 그렇게 해"라고 말했을 때
+  활용: 같은 실수를 반복하지 않도록
+
+type: project — 코드/git에서 도출 불가능한 프로젝트 맥락
+  예: "3/5(목)까지 모바일 릴리스 브랜치 컷 예정 — 비핵심 머지 동결"
+  저장 시점: 마감, 결정, 사건 등을 학습했을 때
+  활용: 제안의 맥락화
+
+type: reference — 외부 시스템 위치
+  예: "파이프라인 버그는 Linear 프로젝트 'INGEST'에서 추적"
+  저장 시점: 외부 리소스 위치를 학습했을 때
+  활용: 외부 참조 시
+
+기억하지 않는 것 (코드에서 도출 가능하므로):
+  ✗ 코드 패턴, 규약, 아키텍처 (코드 읽기로 파악)
+  ✗ Git 히스토리 (git log/blame이 권위적)
+  ✗ 디버깅 해결책 (커밋에 포함)
+  ✗ CLAUDE.md에 이미 문서화된 내용
+```
+
+**당신의 시스템에 적용**: 메모리 시스템 설계 시 (1) 추출은 자동 + 턴 종료 시 + 권한 제한된 Forked Agent, (2) 주입은 관련성 기반 선별 + 스트리밍 중 프리페치, (3) 유형은 닫힌 분류 체계로 노이즈 방지. 이 세 가지가 모두 있어야 "매번 같은 지시 반복" 문제가 해결된다.
+
+---
 
 ## 장시간 실행 에이전트: 과학 컴퓨팅의 교훈
 
@@ -712,6 +893,48 @@ Claude Code의 가장 중요한 성능 최적화 중 하나:
 
 이 패턴의 효과: 모델 스트리밍의 5-30초 윈도우를 활용하여 도구 실행을 오버랩. 매 턴 2-5초의 대기 시간을 제거한다.
 
+**StreamingToolExecutor의 동작 타이밍** (query.ts에서 추적):
+```
+query.ts:561 — config.gates.streamingToolExecution이 true이면 StreamingToolExecutor 생성
+query.ts:838 — 모델 스트리밍 중 tool_use 블록이 감지되는 즉시:
+               streamingToolExecutor.addTool(toolBlock, message)
+               → 도구가 즉시 실행 시작 (API 응답이 아직 스트리밍 중)
+query.ts:851 — 스트리밍 중에도 완료된 결과를 getCompletedResults()로 즉시 yield
+query.ts:1380 — 스트리밍 완료 후 getRemainingResults()로 미완료 도구 대기
+
+Fallback 처리 (query.ts:733):
+  스트리밍 실패 시 → executor.discard() → 새 StreamingToolExecutor 생성
+  → 부분 완료된 도구 결과는 tombstone 처리
+```
+
+**어떤 도구가 스트리밍 중 병렬 실행되는가:**
+```
+isConcurrencySafe = true인 도구 (서로 병렬 실행 가능):
+  ├─ FileReadTool (파일 읽기)
+  ├─ GrepTool (코드 검색)
+  ├─ GlobTool (파일 패턴 검색)
+  ├─ WebFetchTool (URL 가져오기)
+  ├─ WebSearchTool (웹 검색)
+  └─ LSPTool (언어 서버)
+
+isConcurrencySafe = false인 도구 (단독 실행, 다른 도구와 병렬 불가):
+  ├─ BashTool (명령어 실행 — 부작용)
+  ├─ FileEditTool (파일 수정 — 충돌 방지)
+  ├─ FileWriteTool (파일 생성 — 충돌 방지)
+  ├─ AgentTool (서브에이전트 — 독립 세션)
+  └─ 기타 쓰기 도구
+```
+
+**이것은 서브에이전트가 아니다**: StreamingToolExecutor는 서브에이전트를 실행하는 것이 아니다. 메인 Agentic Loop 내에서, 모델이 tool_use 블록을 생성하는 즉시 해당 도구의 `call()` 함수를 실행 시작하는 것이다. Forked Agent와는 별개의 메커니즘이다.
+
+**Memory Prefetch도 동일한 Time Overlap 패턴을 사용한다** (query.ts:301):
+```
+모델 스트리밍 시작과 동시에:
+  startRelevantMemoryPrefetch() → Haiku sideQuery로 관련 메모리 5개 선별
+  → 97%의 경우 모델 스트리밍 윈도우 내에 완료
+  → 도구 실행 완료 후 settled된 결과만 소비 (절대 차단하지 않음)
+```
+
 ---
 
 # Part 5: 생태계 확장 — 확장성과 표준화 (2025.10 — 2025.12)
@@ -733,19 +956,23 @@ Plugin = Skills + Hooks + MCP Servers + Agents
 공유: Git 레포지토리
 ```
 
-## $1B 매출과 Bun 인수 (2025.12.03)
+## Bun 런타임과 Feature Flag 기반 Dead Code Elimination
 
-GA 후 6개월 만에 연간 $1B 매출 달성. 동시에 JavaScript 런타임 **Bun**을 인수.
-
-**왜 Bun인가**: Claude Code는 TypeScript로 구축되어 있으며, Bun의 `feature()` API가 Dead Code Elimination의 핵심이다:
+Claude Code는 TypeScript로 구축되어 있으며, **Bun** 런타임의 `feature()` API를 활용한 Dead Code Elimination이 아키텍처의 핵심이다:
 
 ```typescript
-// 빌드 시점에 비활성 코드 완전 제거
+// 빌드 시점에 비활성 코드 완전 제거 (bun:bundle feature flags)
 const voiceCommand = feature('VOICE_MODE')
   ? require('./commands/voice/index.js').default
   : null
 // VOICE_MODE=false이면 voice 모듈 전체가 바이너리에서 제거
-// → 바이너리 크기 최적화 + 공격 표면 감소
+
+// query.ts에서 실제 사용되는 Feature Flag들:
+const snipModule = feature('HISTORY_SNIP') ? require('./services/compact/snipCompact.js') : null
+const contextCollapse = feature('CONTEXT_COLLAPSE') ? require('./services/contextCollapse/index.js') : null
+const reactiveCompact = feature('REACTIVE_COMPACT') ? require('./services/compact/reactiveCompact.js') : null
+// → 각 기능이 독립적으로 활성화/비활성화 가능
+// → 비활성 기능의 코드가 바이너리에 아예 포함되지 않음 → 공격 표면 감소
 ```
 
 ## Agent Skills: 에이전트에게 전문성을 부여하는 개방형 표준 (2025.10.16)
@@ -1380,7 +1607,7 @@ Phase 4: Autonomy (지속적)
 | **2025.09** | **Context Engineering + Checkpoints + Hooks** | **하네스 성숙** |
 | **2025.10** | **Agent Skills + Plugins + Web App + Sandboxing** | **플랫폼 전환 + 보안 + 전문화** |
 | 2025.11 | Opus 4.5 + Effective Harnesses + Tool Search | 장시간 에이전트 + 도구 발견 혁신 |
-| 2025.12 | $1B + AAIF + Bun + Skills 오픈 표준 + Desktop App | 생태계 확립 |
+| 2025.12 | AAIF + Bun + Skills 오픈 표준 + Desktop App | 생태계 확립 |
 | 2026.01 | Evals 가이드 + Context Compaction API + Cowork | 평가 프레임워크 + 클라우드 압축 |
 | 2026.02 | Opus/Sonnet 4.6 (1M) + 자율성 측정 + C컴파일러(16 Agent) | 자율성 + Multi-Agent 실증 |
 | 2026.03 | Auto Mode + Skills 2.0 + Planner/Generator/Evaluator | 신뢰의 코드화 + 스킬 평가 |
@@ -1400,7 +1627,7 @@ Phase 4: Autonomy (지속적)
 8. Customize Claude Code with Plugins (2025.10.09)
 9. Introducing Claude Opus 4.5 (2025.11.24)
 10. Effective Harnesses for Long-Running Agents (2025.11.26)
-11. Anthropic Acquires Bun / $1B Milestone (2025.12.03)
+11. Anthropic Acquires Bun (2025.12.03)
 12. AAIF / MCP Donation (2025.12.09)
 13. Introducing Agent Skills (2025.12.18)
 14. Demystifying Evals for AI Agents (2026.01.09)
