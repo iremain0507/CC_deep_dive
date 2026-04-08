@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>하네스 엔지니어링 — Claude Code로 배우는 Agentic LLM System 설계</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#0a0a0f;--s1:#12121a;--s2:#1a1a28;--s3:#222235;
+--bd:#2a2a40;--t:#e0e0f0;--t2:#9090b0;--t3:#606080;
+--ac:#6366f1;--ac2:#818cf8;--ac3:#a5b4fc;
+--g:#34d399;--g2:#059669;--o:#f59e0b;--r:#ef4444;
+--cy:#22d3ee;--pk:#ec4899;
+--sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+--mono:'SF Mono','Cascadia Code','Fira Code',monospace;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--t);line-height:1.7;overflow-x:hidden}
+::selection{background:var(--ac);color:#fff}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,10,15,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:.5rem;padding:.5rem 1rem;transition:transform .3s}
+nav.hide{transform:translateY(-100%)}
+.nl{font-weight:700;font-size:.85rem;color:var(--ac2);white-space:nowrap}
+.ni{display:flex;gap:.2rem;overflow-x:auto;flex:1;scrollbar-width:none}
+.ni::-webkit-scrollbar{display:none}
+.nb{padding:.3rem .6rem;border-radius:5px;font-size:.7rem;color:var(--t3);cursor:pointer;white-space:nowrap;transition:all .15s;border:1px solid transparent}
+.nb:hover{color:var(--t);background:var(--s2)}
+.nb.on{color:var(--ac2);background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.3)}
+.np{height:2px;background:var(--ac);position:absolute;bottom:0;left:0;transition:width .3s}
+
+section{min-height:100vh;padding:5rem 2rem 3rem;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transform:translateY(20px);transition:opacity .5s,transform .5s}
+section.vis{opacity:1;transform:none}
+.inner{max-width:1050px;width:100%}
+h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;letter-spacing:-.03em;line-height:1.15;margin-bottom:.75rem}
+h2{font-size:clamp(1.4rem,3vw,2rem);font-weight:700;letter-spacing:-.02em;margin-bottom:.5rem}
+h3{font-size:1.05rem;font-weight:600;margin-bottom:.4rem;color:var(--ac3)}
+.gr{background:linear-gradient(135deg,var(--ac2),var(--cy),var(--pk));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.tag{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-size:.65rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.tb{background:rgba(99,102,241,.15);color:var(--ac2);border:1px solid rgba(99,102,241,.3)}
+.tg{background:rgba(52,211,153,.12);color:var(--g);border:1px solid rgba(52,211,153,.3)}
+.to{background:rgba(245,158,11,.12);color:var(--o);border:1px solid rgba(245,158,11,.3)}
+.tp{background:rgba(236,72,153,.12);color:var(--pk);border:1px solid rgba(236,72,153,.3)}
+p,.d{color:var(--t2);font-size:.95rem;margin-bottom:.75rem}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:1.25rem;transition:all .25s}
+.card:hover{border-color:var(--ac);box-shadow:0 4px 20px rgba(99,102,241,.08)}
+.cg{display:grid;gap:.75rem;margin:1rem 0}
+.c2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.c3{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.code{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:1rem;font-family:var(--mono);font-size:.75rem;line-height:1.65;overflow-x:auto;margin:.75rem 0;color:var(--t2);white-space:pre}
+.kw{color:var(--ac2)}.fn{color:var(--cy)}.str{color:var(--g)}.cmt{color:var(--t3);font-style:italic}.num{color:var(--o)}.hl{color:var(--pk);font-weight:600}
+.q{border-left:3px solid var(--ac);padding:.6rem 1rem;margin:.75rem 0;background:rgba(99,102,241,.04);border-radius:0 8px 8px 0;font-style:italic;color:var(--t2);font-size:.9rem}
+.stat{text-align:center;padding:1rem;background:var(--s1);border:1px solid var(--bd);border-radius:8px}
+.sv{font-size:1.8rem;font-weight:800;font-family:var(--mono)}.sl{font-size:.7rem;color:var(--t3);text-transform:uppercase;letter-spacing:.04em}
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.75rem;margin:1rem 0}
+.tw{overflow-x:auto;margin:.75rem 0;border-radius:8px;border:1px solid var(--bd)}
+table{width:100%;border-collapse:collapse;font-size:.78rem}
+th{background:var(--s2);padding:.5rem .7rem;text-align:left;font-weight:600;color:var(--t2);border-bottom:1px solid var(--bd);white-space:nowrap}
+td{padding:.5rem .7rem;border-bottom:1px solid var(--bd);color:var(--t2)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(99,102,241,.03)}
+
+.tl{position:relative;padding-left:1.75rem;margin:1.5rem 0}
+.tl::before{content:'';position:absolute;left:.4rem;top:0;bottom:0;width:2px;background:linear-gradient(to bottom,var(--ac),var(--cy),var(--pk),var(--g))}
+.ti{position:relative;padding-bottom:1.5rem;opacity:0;transform:translateX(-15px);transition:all .4s}
+.ti.vis{opacity:1;transform:none}
+.ti::before{content:'';position:absolute;left:-1.5rem;top:.3rem;width:10px;height:10px;border-radius:50%;background:var(--ac);border:2px solid var(--bg);z-index:1}
+.ti.maj::before{width:14px;height:14px;left:-1.6rem;background:var(--cy);box-shadow:0 0 10px rgba(34,211,238,.4)}
+.td{font-size:.72rem;color:var(--ac2);font-weight:600;font-family:var(--mono)}
+.tt{font-size:.95rem;font-weight:600;margin:.15rem 0}
+.ts{color:var(--t2);font-size:.82rem}
+
+.tabs{display:flex;gap:.2rem;margin-bottom:.75rem;border-bottom:1px solid var(--bd);padding-bottom:.4rem;flex-wrap:wrap}
+.tab{padding:.35rem .7rem;border-radius:5px 5px 0 0;font-size:.75rem;color:var(--t3);cursor:pointer;transition:all .15s;border:1px solid transparent;border-bottom:none}
+.tab:hover{color:var(--t)}.tab.on{color:var(--ac2);background:var(--s1);border-color:var(--bd)}
+.tc{display:none}.tc.on{display:block;animation:fi .3s}
+
+.acc{margin:.5rem 0}
+.ah{padding:.7rem .9rem;background:var(--s2);border:1px solid var(--bd);border-radius:7px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:.82rem;font-weight:600;transition:all .15s}
+.ah:hover{border-color:var(--ac)}
+.ah .ar{transition:transform .25s;color:var(--t3)}
+.ah.op .ar{transform:rotate(90deg)}
+.ab{max-height:0;overflow:hidden;transition:max-height .35s ease}
+.ab.op{max-height:3000px}
+.abi{padding:.9rem;font-size:.82rem;color:var(--t2);line-height:1.8}
+
+.fl{display:flex;flex-direction:column;gap:.4rem;margin:.75rem 0}
+.fs{display:flex;align-items:flex-start;gap:.6rem}
+.fn2{width:26px;height:26px;min-width:26px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;margin-top:.1rem}
+.fc{flex:1;padding:.4rem .65rem;background:var(--s2);border-radius:6px;font-size:.8rem;border:1px solid var(--bd)}
+
+@keyframes fi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:768px){section{padding:4rem 1rem 2rem}.c2,.c3{grid-template-columns:1fr}.sg{grid-template-columns:repeat(2,1fr)}}
+@media print{nav{display:none}section{opacity:1;transform:none;min-height:auto;padding:1rem}}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
+</style>
+</head>
+<body>
+<nav id="nav"><div class="nl">하네스 엔지니어링</div><div class="ni" id="ni"></div><div class="np" id="np"></div></nav>
+
+<!-- S0: TITLE -->
+<section id="s0" data-n="Intro">
+<div class="inner" style="text-align:center">
+<span class="tag tb" style="font-size:.75rem;padding:.25rem .7rem">Technical Report 2026</span>
+<h1 style="margin-top:.75rem"><span class="gr">하네스 엔지니어링</span></h1>
+<p style="font-size:1.1rem;max-width:650px;margin:.75rem auto">Claude Code 14개월 진화의 기술적 해부<br>Agentic LLM System의 설계와 구축</p>
+<div class="sg" style="max-width:750px;margin:2rem auto">
+<div class="stat"><div class="sv" style="color:var(--ac2)" id="a0">0</div><div class="sl">Lines of Code (src/)</div></div>
+<div class="stat"><div class="sv" style="color:var(--g)" id="a1">0</div><div class="sl">Tool Directories</div></div>
+<div class="stat"><div class="sv" style="color:var(--o)" id="a2">0</div><div class="sl">Context Stages</div></div>
+<div class="stat"><div class="sv" style="color:var(--pk)" id="a3">0</div><div class="sl">State Machine (C+E)</div></div>
+</div>
+<p style="color:var(--t3);font-size:.8rem"><span style="color:var(--ac2);font-weight:600">Agent = Model + Harness</span> — 모델은 API다. 하네스가 제품이다.</p>
+</div>
+</section>
+
+<!-- S1: OS ANALOGY -->
+<section id="s1" data-n="공식">
+<div class="inner">
+<span class="tag tb">Core Equation</span>
+<h2 style="margin-top:.5rem">Agent = Model + Harness</h2>
+<p>LLM이 CPU라면, 하네스는 운영체제. 컨텍스트 큐레이션, 도구 디스패치, 오류 복구, 권한 관리 — 모두 하네스의 책임.</p>
+<div class="tw">
+<table>
+<tr><th>OS 개념</th><th>에이전트</th><th>Claude Code 구현</th></tr>
+<tr><td><strong>CPU</strong></td><td>LLM</td><td>Anthropic API (Opus/Sonnet/Haiku)</td></tr>
+<tr><td><strong>RAM</strong></td><td>컨텍스트 윈도우</td><td>200K ~ 1M 토큰</td></tr>
+<tr><td><strong>Kernel</strong></td><td>하네스</td><td>query.ts — 1,729줄 State Machine (7 Continue + 10 Exit)</td></tr>
+<tr><td><strong>Syscall</strong></td><td>도구 호출</td><td>43 Tool Dirs, buildTool() 팩토리, isConcurrencySafe 플래그</td></tr>
+<tr><td><strong>Scheduler</strong></td><td>도구 스케줄링</td><td>StreamingToolExecutor — 스트리밍 중 병렬 실행</td></tr>
+<tr><td><strong>VM</strong></td><td>컨텍스트 압축</td><td>5단계 파이프라인 + Reactive Recovery</td></tr>
+<tr><td><strong>Permissions</strong></td><td>권한</td><td>OS Sandbox(bubblewrap/seatbelt) + 5-Layer Pipeline + ML 분류기</td></tr>
+<tr><td><strong>FS</strong></td><td>영구 메모리</td><td>memdir/ — 4유형 자동 추출/주입, MEMORY.md 인덱스</td></tr>
+<tr><td><strong>IPC</strong></td><td>에이전트 통신</td><td>CacheSafeParams + Forked Agent + SendMessage + Mailbox</td></tr>
+</table>
+</div>
+<div class="cg c3" style="margin-top:1rem">
+<div class="card"><h3 style="color:var(--g)">MCP</h3><p style="font-size:.8rem;margin:0">"에이전트가 어떤 도구를 호출할 수 있는가"<br>월 9,700만 SDK DL, Linux Foundation AAIF</p></div>
+<div class="card"><h3 style="color:var(--cy)">Agent Skills</h3><p style="font-size:.8rem;margin:0">"그 도구로 이 작업을 어떻게 수행하는가"<br>agentskills.io, 33+ 플랫폼</p></div>
+<div class="card"><h3 style="color:var(--pk)">Hooks</h3><p style="font-size:.8rem;margin:0">"언제 자동으로 로직을 실행하는가"<br>20+ 이벤트, 도구 파이프라인에 직접 통합</p></div>
+</div>
+</div>
+</section>
+
+<!-- S2: EVOLUTION TIMELINE -->
+<section id="s2" data-n="진화">
+<div class="inner">
+<span class="tag to">Evolution</span>
+<h2 style="margin-top:.5rem">14개월의 진화</h2>
+<p>각 시점의 변화는 이전 단계에서 발견된 구체적 문제에 대한 해법이다</p>
+<div class="tl" id="tl">
+
+<div class="ti maj"><div class="td">2024.12</div><div class="tt">"Building Effective Agents" + Think Tool</div>
+<div class="ts">5가지 워크플로우 패턴. Think Tool: 부작용 없는 "생각" 도구로 순차 도구 호출 품질 <strong>54% 향상</strong>. "도구 설계에 프롬프트만큼 공을 들여라."</div></div>
+
+<div class="ti maj"><div class="td">2025.02</div><div class="tt">Claude Code 탄생 — Day 1 하네스</div>
+<div class="ts"><code>while(true)</code> + 기본 도구 + 기본 권한. <strong>발견된 문제</strong>: 대화가 길어지면 컨텍스트 가득 차 성능 저하. 모든 도구 호출마다 권한 확인 필요.</div></div>
+
+<div class="ti maj"><div class="td">2025.05</div><div class="tt">GA + Claude 4 (SWE-bench 72.5%)</div>
+<div class="ts">사용자 규모 폭증 → 3대 Pain Point 발견. <strong>추가</strong>: 규칙 학습(bashPermissions.ts 접두사 추출), withRetry.ts(DEFAULT_MAX_RETRIES=10, 529 Fallback), 수동 /compact.</div></div>
+
+<div class="ti maj"><div class="td">2025.09</div><div class="tt">하네스 성숙의 전환점</div>
+<div class="ts">"Context Engineering" + "Agent SDK" 발표. <strong>추가</strong>: Auto-compact(13K 버퍼), Error Withholding(413/max_tokens 보류→복구→폐기), Checkpoint(매 메시지 스냅샷), Subagents(CacheSafeParams), <strong>Hooks</strong>(20+ 이벤트, canUseTool 파이프라인 통합), StreamingToolExecutor.</div></div>
+
+<div class="ti"><div class="td">2025.10</div><div class="tt">플랫폼 전환</div>
+<div class="ts">Agent Skills(3단계 Progressive Disclosure), Plugins, Web App, OS Sandboxing(bubblewrap/seatbelt, 프롬프트 <strong>84%↓</strong>), Tool Search(<strong>85%↓</strong> 토큰, 정확도 49%→74%).</div></div>
+
+<div class="ti"><div class="td">2025.11</div><div class="tt">Advanced Tool Use + 장시간 에이전트</div>
+<div class="ts">Programmatic Tool Calling(<strong>37%↓</strong>), Tool Examples(72%→<strong>90%</strong>), Code Execution with MCP(<strong>98.7%↓</strong>). Initializer-Executor, "한 세션에 한 기능" 원칙.</div></div>
+
+<div class="ti"><div class="td">2025.12</div><div class="tt">생태계 확립</div>
+<div class="ts">AAIF(MCP 기부), Skills 오픈 표준(33+ 플랫폼), Bun 인수(feature() Dead Code Elimination), Desktop App, Scheduled Tasks, Channels.</div></div>
+
+<div class="ti maj"><div class="td">2026.02</div><div class="tt">자율성의 시대</div>
+<div class="ts">Opus/Sonnet 4.6 (1M 컨텍스트). 자율성 측정: 경험 사용자 40%+ 자동승인, 전략적 개입 5%→9%. C 컴파일러: 16 에이전트, $20K, GCC 99% 통과.</div></div>
+
+<div class="ti maj"><div class="td">2026.03</div><div class="tt">신뢰의 코드화</div>
+<div class="ts">Auto Mode(오탐률 0.4%), Skills 2.0(Evals+A/B+Description 최적화), Planner-Generator-Evaluator(생성/평가 분리 → <strong>2-3x</strong> 향상). 안전성: 평가가 실제를 <strong>8.5x</strong> 과소평가.</div></div>
+
+</div>
+</div>
+</section>
+
+<!-- S3: PHASED CONSTRUCTION -->
+<section id="s3" data-n="구축 단계">
+<div class="inner">
+<span class="tag tg">Phased Construction</span>
+<h2 style="margin-top:.5rem">하네스의 단계적 구축: Day 1 → 성숙</h2>
+<p>각 Phase는 진화 타임라인의 특정 시점에서 필요해진 것들이다</p>
+<div class="cg c2">
+<div class="card" style="border-top:3px solid var(--ac2)">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem"><h3 style="margin:0;color:var(--ac2)">Phase 1: Foundation</h3><span class="tag tb">2025.02</span></div>
+<div class="code" style="font-size:.7rem"><span class="kw">while</span> (<span class="num">true</span>) {
+  messages + systemPrompt → <span class="fn">callAPI</span>(streaming)
+  tool_use 감지 → 권한 확인 → <span class="fn">executeTool</span>() → 결과 추가
+  tool_use 없으면 → <span class="kw">break</span>
+}</div>
+<p style="font-size:.78rem;margin:0">+ 3-5개 핵심 도구 + Think Tool(54%↑) + 기본 권한 + 스트리밍</p>
+</div>
+
+<div class="card" style="border-top:3px solid var(--g)">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem"><h3 style="margin:0;color:var(--g)">Phase 2: Resilience</h3><span class="tag tg">2025.05-09</span></div>
+<ul style="font-size:.78rem;color:var(--t2);padding-left:1.1rem;line-height:2">
+<li>Auto-compact (effectiveWindow - 13K 버퍼)</li>
+<li>Error Withholding + Cascade Recovery + Guard 플래그</li>
+<li>API 재시도 (MAX_RETRIES=10, 529→Fallback)</li>
+<li>Checkpoint (JSONL + 파일 스냅샷)</li>
+<li>CLAUDE.md 계층 (관리→글로벌→프로젝트→로컬)</li>
+</ul>
+</div>
+
+<div class="card" style="border-top:3px solid var(--o)">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem"><h3 style="margin:0;color:var(--o)">Phase 3: Scale</h3><span class="tag to">2025.09-12</span></div>
+<ul style="font-size:.78rem;color:var(--t2);padding-left:1.1rem;line-height:2">
+<li>Sub-Agent (CacheSafeParams 캐시 공유)</li>
+<li>StreamingToolExecutor (스트리밍 중 병렬 실행)</li>
+<li>MCP + Tool Search (85%↓) + Skills (Progressive Disclosure)</li>
+<li>OS Sandboxing (Permission 84%↓)</li>
+<li>Hooks (20+ 이벤트, canUseTool 파이프라인 통합)</li>
+</ul>
+</div>
+
+<div class="card" style="border-top:3px solid var(--pk)">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem"><h3 style="margin:0;color:var(--pk)">Phase 4: Autonomy</h3><span class="tag tp">2026.01+</span></div>
+<ul style="font-size:.78rem;color:var(--t2);padding-left:1.1rem;line-height:2">
+<li>Auto Mode (ML분류기 + 서버탐지, 오탐률 0.4%)</li>
+<li>Code Exec with MCP (98.7%↓)</li>
+<li>검증 분리 (Stop Hook / Evaluator / Writer-Reviewer)</li>
+<li>장시간 에이전트 (CLAUDE.md + CHANGELOG.md + Ralph Loop)</li>
+<li>안전성 모니터링 (AI-reviewing-AI)</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+
+<!-- S4: 5-STAGE CONTEXT -->
+<section id="s4" data-n="컨텍스트">
+<div class="inner">
+<span class="tag to">Context Management</span>
+<h2 style="margin-top:.5rem">5단계 컨텍스트 관리 파이프라인</h2>
+<p>매 Agentic Loop 반복마다 API 호출 전에 순차 실행. 순서에 의미가 있다.</p>
+<div class="fl">
+<div class="fs"><div class="fn2">1</div><div class="fc"><strong>Tool Result Budget</strong> <span style="color:var(--t3)">(query.ts:379, 매 반복)</span><br>대형 도구 결과(>50,000자)를 디스크 참조로 교체. 이후 API 호출에서 재전송 방지.</div></div>
+<div class="fs"><div class="fn2">2</div><div class="fc"><strong>Snip</strong> <span style="color:var(--t3)">(query.ts:401, HISTORY_SNIP)</span><br>오래된 메시지 그룹을 경계 마커 기반으로 통째로 제거. 비용 0ms. MC 전에 실행하여 snip된 tool_use_id가 MC에 전달되지 않도록.</div></div>
+<div class="fs"><div class="fn2">3</div><div class="fc"><strong>Microcompact</strong> <span style="color:var(--t3)">(query.ts:412)</span><br>오래된 Read/Bash/Grep 결과를 "[Old tool result cleared]"로 교체. tool_use_id 구조 유지 → 캐시 정렬 보존. 일반 MC + Cached MC(서버측 cache_edits) 두 모드.</div></div>
+<div class="fs"><div class="fn2">4</div><div class="fc"><strong>Context Collapse</strong> <span style="color:var(--t3)">(query.ts:440, CONTEXT_COLLAPSE)</span><br>인접 메시지 그룹을 축약. Auto-compact 전에 실행 — <strong>collapse가 충분하면 autocompact 불필요</strong> → 세분화된 컨텍스트 보존 (정보 손실 최소화).</div></div>
+<div class="fs"><div class="fn2">5</div><div class="fc"><strong>Auto-compact</strong> <span style="color:var(--t3)">(query.ts:453)</span><br>Forked Agent가 전체 대화 요약. 트리거: 토큰 > effectiveWindow - 13K. 200K 모델 ≈ 167K(~83.5%). 후처리: 파일 5개 + 스킬 25K + MCP 재주입. Circuit Breaker: 3회 연속 실패 시 중단.</div></div>
+<div class="fs"><div class="fn2" style="background:var(--r)">!</div><div class="fc" style="border-color:rgba(239,68,68,.3)"><strong>Reactive Compact</strong> <span style="color:var(--t3)">(query.ts:1119, 비상)</span><br>API 413 에러 후에만 실행. Error Withholding으로 보류 → Collapse drain → 전체 요약. 성공 시 에러 폐기(사용자 모름), 실패 시 표출. hasAttemptedReactiveCompact=true로 재시도 방지.</div></div>
+</div>
+</div>
+</section>
+
+<!-- S5: HOOK ARCHITECTURE -->
+<section id="s5" data-n="Hooks">
+<div class="inner">
+<span class="tag tg">Hook Architecture</span>
+<h2 style="margin-top:.5rem">Hook이 예외 없이 실행되는 이유</h2>
+<p>Hook은 "선택적 플러그인"이 아니라 도구 실행 파이프라인의 필수 단계다</p>
+<div class="code" style="font-size:.72rem"><span class="cmt">// 도구 호출의 실제 흐름 (query.ts + hooks/useCanUseTool.tsx)</span>
+
+<span class="num">1.</span> 모델이 tool_use 블록 생성
+<span class="num">2.</span> <span class="fn">canUseTool</span>() 호출  <span class="cmt">// hooks/useCanUseTool.tsx</span>
+   └→ <span class="fn">executePermissionRequestHooks</span>()  <span class="cmt">// PreToolUse Hook 실행</span>
+   └→ Hook 결과: <span class="kw">allow</span> | <span class="kw">deny</span> | <span class="kw">ask</span> | <span class="kw">defer</span>
+   <span class="hl">canUseTool()이 Hook을 건너뛰는 경로는 존재하지 않는다</span>
+<span class="num">3.</span> 도구 실행
+<span class="num">4.</span> PostToolUse Hook 실행
+<span class="num">5.</span> 모든 도구 완료 + 모델이 도구 호출 안 하면:
+   └→ <span class="fn">handleStopHooks</span>()  <span class="cmt">// query/stopHooks.ts</span>
+   └→ blocking error 반환 시 → 에러를 user 메시지로 주입 → <span class="kw">continue</span>
+      <span class="cmt">// 모델이 에러를 보고 수정 시도 (= 검증 루프)</span>
+
+<span class="cmt">// 보안: 세션 시작 시 captureHooksConfigSnapshot()으로 설정 스냅샷</span>
+<span class="cmt">// → 세션 중 설정 파일이 변경되어도 숨겨진 Hook 수정 불가능</span>
+<span class="cmt">// Death Spiral 방지: lastMessage.isApiErrorMessage이면 Stop Hook 건너뜀</span></div>
+<div class="cg c2">
+<div class="card"><h3>20+ Hook 이벤트</h3><p style="font-size:.78rem;margin:0">SessionStart, PreToolUse, PostToolUse, Stop, SubagentStop, FileChanged, TeammateIdle, PreCompact, PostCompact, PermissionRequest, PermissionDenied, CwdChanged, TaskCreated, TaskCompleted, ConfigChange, Elicitation 등</p></div>
+<div class="card"><h3>4가지 핸들러 타입</h3><p style="font-size:.78rem;margin:0"><strong>Command</strong>: 셸 스크립트 실행 (stdin JSON, exit code 제어)<br><strong>HTTP</strong>: POST JSON → 응답<br><strong>Prompt</strong>: Claude가 yes/no 판단 (30s 타임아웃)<br><strong>Agent</strong>: 서브에이전트가 조건 검사 (60s 타임아웃)</p></div>
+</div>
+</div>
+</section>
+
+<!-- S6: STREAMING TOOL EXECUTOR -->
+<section id="s6" data-n="도구 실행">
+<div class="inner">
+<span class="tag tb">Tool Execution</span>
+<h2 style="margin-top:.5rem">StreamingToolExecutor: 스트리밍 중 병렬 도구 실행</h2>
+<p>모델이 tool_use 블록을 생성하는 즉시 도구 실행 시작 — 응답 스트리밍 완료를 기다리지 않는다</p>
+<div class="code" style="font-size:.72rem"><span class="cmt">// query.ts:838 — 스트리밍 중 즉시 실행 시작</span>
+<span class="kw">if</span> (streamingToolExecutor && toolBlock) {
+  streamingToolExecutor.<span class="fn">addTool</span>(toolBlock, message)  <span class="cmt">// 즉시!</span>
+}
+<span class="cmt">// query.ts:851 — 완료된 결과를 스트리밍 중에도 yield</span>
+<span class="kw">for</span> (<span class="kw">const</span> result <span class="kw">of</span> streamingToolExecutor.<span class="fn">getCompletedResults</span>()) {
+  <span class="kw">yield</span> result
+}</div>
+<div class="cg c2">
+<div class="card">
+<h3 style="color:var(--g)">isConcurrencySafe = true (병렬 가능)</h3>
+<p style="font-size:.8rem;margin:0">Read, Grep, Glob, WebFetch, WebSearch, LSP<br><span style="color:var(--t3)">읽기 전용 도구 — 서로 부작용 없음</span></p>
+</div>
+<div class="card">
+<h3 style="color:var(--pk)">isConcurrencySafe = false (단독 실행)</h3>
+<p style="font-size:.8rem;margin:0">Bash, Edit, Write, Agent, 기타<br><span style="color:var(--t3)">쓰기 도구 — 새 도구는 기본 false (Fail-Closed)</span></p>
+</div>
+</div>
+<div class="card" style="margin-top:.5rem"><p style="font-size:.8rem;margin:0"><strong>에러 전파</strong>: Bash 에러 → siblingAbortController.abort() → 형제 취소. Read/WebFetch 에러 → 독립.<br><strong>결과 순서</strong>: 병렬이더라도 tool_use 순서대로 yield.<br><strong>Fallback</strong>: 스트리밍 실패 시 executor.discard() → 새로 생성 → tombstone 처리.<br><strong>Memory Prefetch</strong>: 동일 패턴 — startRelevantMemoryPrefetch() → Haiku sideQuery → 97% 스트리밍 중 완료.</p></div>
+</div>
+</section>
+
+<!-- S7: AUTO MEMORY -->
+<section id="s7" data-n="메모리">
+<div class="inner">
+<span class="tag tg">Auto Memory</span>
+<h2 style="margin-top:.5rem">자동 메모리: 반복 지시를 시스템으로 옮기는 방법</h2>
+<div class="cg c3">
+<div class="card" style="border-top:3px solid var(--g)">
+<h3 style="color:var(--g)">자동 추출</h3>
+<p style="font-size:.78rem">턴 종료 시 Forked Agent가 대화 분석 → 메모리 파일 저장<br><br><strong>권한</strong>: Read/Grep/Glob 무제한, Write/Edit은 메모리 디렉토리만<br><strong>상호 배제</strong>: hasMemoryWritesSince() — 메인이 직접 기록했으면 포크 건너뜀</p>
+</div>
+<div class="card" style="border-top:3px solid var(--cy)">
+<h3 style="color:var(--cy)">자동 주입</h3>
+<p style="font-size:.78rem">매 턴 시작 시 Haiku sideQuery로 관련 메모리 5개 선별<br><br><strong>타이밍</strong>: 모델 스트리밍과 동시 → 97% 완료 → 추가 대기 0ms<br><strong>중복 제거</strong>: alreadySurfaced 세트로 같은 메모리 재표출 방지</p>
+</div>
+<div class="card" style="border-top:3px solid var(--pk)">
+<h3 style="color:var(--pk)">4가지 유형 분류</h3>
+<p style="font-size:.78rem"><strong>user</strong>: "시니어 백엔드, React 초보"<br><strong>feedback</strong>: "mock 금지 — 마이그레이션 실패 숨김"<br><strong>project</strong>: "3/5 릴리스 컷 — 머지 동결"<br><strong>reference</strong>: "버그 추적은 Linear INGEST"<br><br><em>기억 안 하는 것</em>: 코드 패턴, git 히스토리, CLAUDE.md에 이미 있는 것</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- S8: ERROR RECOVERY -->
+<section id="s8" data-n="오류 복구">
+<div class="inner">
+<span class="tag tp">Error Recovery</span>
+<h2 style="margin-top:.5rem">Error Withholding: 복구에 성공한 에러는 존재하지 않았던 것</h2>
+<div class="code" style="font-size:.72rem"><span class="cmt">// query.ts:800-820 — 스트리밍 중 에러 감지</span>
+<span class="kw">let</span> withheld = <span class="num">false</span>
+<span class="kw">if</span> (is413(message))      withheld = <span class="num">true</span>  <span class="cmt">// UI에 전달 안 함</span>
+<span class="kw">if</span> (isMaxTokens(message)) withheld = <span class="num">true</span>
+<span class="kw">if</span> (isMediaSize(message))  withheld = <span class="num">true</span>
+<span class="kw">if</span> (!withheld) <span class="kw">yield</span> message  <span class="cmt">// 정상만 통과</span>
+
+<span class="cmt">// 스트리밍 완료 후 — Cascade Recovery</span>
+<span class="kw">if</span> (withheld413) {
+  <span class="fn">collapseDrain</span>()   <span class="cmt">// 1차: 저비용</span>
+  || <span class="fn">reactiveCompact</span>() <span class="cmt">// 2차: 전체 요약</span>
+  || <span class="fn">surfaceError</span>()    <span class="cmt">// 3차: 포기, 표출</span>
+}
+<span class="kw">if</span> (withheldMaxTokens) {
+  <span class="fn">escalate</span>(8K → 64K)           <span class="cmt">// 1차</span>
+  || <span class="fn">recoveryMessage</span>() × 3     <span class="cmt">// 2차: maxOutputTokensRecoveryCount</span>
+  || <span class="fn">surfaceError</span>()              <span class="cmt">// 3차: 포기</span>
+}
+
+<span class="cmt">// Guard 플래그: 각 경로에 "이미 시도" 플래그 → 무한 루프 방지</span>
+<span class="cmt">// Death Spiral 방지: API 에러 후 Stop Hook 건너뜀</span></div>
+</div>
+</section>
+
+<!-- S9: PRINCIPLES -->
+<section id="s9" data-n="원칙">
+<div class="inner" style="text-align:center">
+<h2><span class="gr">10가지 설계 원칙</span></h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.5rem;text-align:left;margin-top:1.5rem">
+<div class="card" style="padding:.8rem"><span style="color:var(--ac2);font-weight:800;font-family:var(--mono);font-size:.8rem">01</span> <span style="font-size:.82rem">최소 하네스로 시작하라</span></div>
+<div class="card" style="padding:.8rem"><span style="color:var(--ac2);font-weight:800;font-family:var(--mono);font-size:.8rem">02</span> <span style="font-size:.82rem">사용자의 인지 부하를 시스템의 계산 부하로 변환</span></div>
+<div class="card" style="padding:.8rem"><span style="color:var(--ac2);font-weight:800;font-family:var(--mono);font-size:.8rem">03</span> <span style="font-size:.82rem">에러 처리를 계층적으로 (Guard 플래그)</span></div>
+<div class="card" style="padding:.8rem"><span style="color:var(--ac2);font-weight:800;font-family:var(--mono);font-size:.8rem">04</span> <span style="font-size:.82rem">컨텍스트는 가장 비싼 자원 (5단계 압축)</span></div>
+<div class="card" style="padding:.8rem"><span style="color:var(--ac2);font-weight:800;font-family:var(--mono);font-size:.8rem">05</span> <span style="font-size:.82rem">캐시 공유가 Multi-Agent 비용을 해결 (CacheSafeParams)</span></div>
+<div class="card" style="padding:.8rem"><span style="color:var(--ac2);font-weight:800;font-family:var(--mono);font-size:.8rem">06</span> <span style="font-size:.82rem">검증을 생성과 분리 (2-3x 향상)</span></div>
+<div class="card" style="padding:.8rem"><span style="color:var(--ac2);font-weight:800;font-family:var(--mono);font-size:.8rem">07</span> <span style="font-size:.82rem">자율성은 스펙트럼 (6개 Permission Mode)</span></div>
+<div class="card" style="padding:.8rem"><span style="color:var(--ac2);font-weight:800;font-family:var(--mono);font-size:.8rem">08</span> <span style="font-size:.82rem">파일시스템이 메모리 (벡터 DB 아님)</span></div>
+<div class="card" style="padding:.8rem"><span style="color:var(--ac2);font-weight:800;font-family:var(--mono);font-size:.8rem">09</span> <span style="font-size:.82rem">프로토콜 표준 채택 (MCP + Skills + A2A)</span></div>
+<div class="card" style="padding:.8rem"><span style="color:var(--ac2);font-weight:800;font-family:var(--mono);font-size:.8rem">10</span> <span style="font-size:.82rem">하네스는 지속적으로 재평가</span></div>
+</div>
+<div class="tw" style="margin-top:1.5rem;text-align:left">
+<table>
+<tr><th>메트릭</th><th>값</th><th>출처</th></tr>
+<tr><td>Think Tool 추론 향상</td><td style="color:var(--g);font-weight:700">54%</td><td>Anthropic 블로그</td></tr>
+<tr><td>Code Execution 토큰 절감</td><td style="color:var(--g);font-weight:700">98.7%</td><td>MCP 엔지니어링</td></tr>
+<tr><td>Tool Search 토큰 절감</td><td style="color:var(--g);font-weight:700">85%</td><td>Advanced Tool Use</td></tr>
+<tr><td>Sandboxing 프롬프트 감소</td><td style="color:var(--g);font-weight:700">84%</td><td>Beyond Prompts</td></tr>
+<tr><td>검증 분리 품질 향상</td><td style="color:var(--g);font-weight:700">2-3x</td><td>Effective Agents</td></tr>
+<tr><td>Auto Mode 오탐률</td><td style="color:var(--g);font-weight:700">0.4%</td><td>Auto Mode</td></tr>
+<tr><td>AI 코드 리뷰 탐지</td><td style="color:var(--g);font-weight:700">99%</td><td>Sabotage Evals</td></tr>
+<tr><td>평가 vs 실제 차이</td><td style="color:var(--pk);font-weight:700">8.5x</td><td>Misalignment</td></tr>
+<tr><td>query.ts</td><td>1,729줄, 7C+10E</td><td>코드 검증</td></tr>
+<tr><td>src/ 소스 코드</td><td>512,685줄</td><td>find+wc -l</td></tr>
+</table>
+</div>
+</div>
+</section>
+
+<script>
+const ss=document.querySelectorAll('section'),ni=document.getElementById('ni'),np=document.getElementById('np'),nav=document.getElementById('nav');
+ss.forEach(s=>{const b=document.createElement('div');b.className='nb';b.textContent=s.dataset.n;b.onclick=()=>s.scrollIntoView({behavior:'smooth'});ni.appendChild(b)});
+let ly=0;
+window.addEventListener('scroll',()=>{
+const y=window.scrollY;nav.classList.toggle('hide',y>ly&&y>80);ly=y;
+const h=document.documentElement.scrollHeight-window.innerHeight;np.style.width=((y/h)*100)+'%';
+ss.forEach((s,i)=>{const r=s.getBoundingClientRect();
+if(r.top<innerHeight*.7&&r.bottom>0)s.classList.add('vis');
+ni.children[i].classList.toggle('on',r.top<innerHeight*.45&&r.bottom>innerHeight*.15)});
+document.querySelectorAll('.ti').forEach(t=>{if(t.getBoundingClientRect().top<innerHeight*.8)t.classList.add('vis')});
+},{passive:true});
+setTimeout(()=>ss[0].classList.add('vis'),80);
+
+let counted=false;
+new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting&&!counted){counted=true;
+ac('a0',0,513,null,'K');ac('a1',0,43);ac('a2',0,6);ac('a3',0,17,null,'');}})},{threshold:.4}).observe(document.getElementById('s0'));
+function ac(id,s,e,p,sf){const el=document.getElementById(id);let v=s;const inc=(e-s)/50;const t=setInterval(()=>{v+=inc;if(v>=e){v=e;clearInterval(t)}el.textContent=(p||'')+Math.round(v)+(sf===undefined?'':sf)},25)}
+
+document.addEventListener('keydown',e=>{
+if(e.key==='ArrowRight'||e.key==='ArrowDown'){e.preventDefault();const i=[...ss].findIndex(s=>{const r=s.getBoundingClientRect();return r.top>-innerHeight*.3&&r.top<innerHeight*.4});if(i<ss.length-1)ss[i+1].scrollIntoView({behavior:'smooth'})}
+if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();const i=[...ss].findIndex(s=>{const r=s.getBoundingClientRect();return r.top>-innerHeight*.3&&r.top<innerHeight*.4});if(i>0)ss[i-1].scrollIntoView({behavior:'smooth'})}
+});
+</script>
+</body>
+</html>
