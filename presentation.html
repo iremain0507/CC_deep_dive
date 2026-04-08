@@ -195,7 +195,7 @@ tr:hover td{background:rgba(99,102,241,.03)}
   <div class="stat-grid" style="max-width:800px;margin:2.5rem auto">
     <div class="stat"><div class="stat-value blue" id="animLines">0</div><div class="stat-label">Lines of Code</div></div>
     <div class="stat"><div class="stat-value green" id="animTools">0</div><div class="stat-label">Built-in Tools</div></div>
-    <div class="stat"><div class="stat-value orange" id="animLayers">0</div><div class="stat-label">Permission Layers</div></div>
+    <div class="stat"><div class="stat-value orange" id="animLayers">0</div><div class="stat-label">Context Compression Stages</div></div>
     <div class="stat"><div class="stat-value pink" id="animRevenue">0</div><div class="stat-label">Revenue in 6mo</div></div>
   </div>
   <p style="color:var(--text3);font-size:.8rem">
@@ -234,7 +234,7 @@ tr:hover td{background:rgba(99,102,241,.03)}
       <tr><td><strong>System Calls</strong></td><td>도구 호출</td><td>40+ Tools</td></tr>
       <tr><td><strong>File System</strong></td><td>영구 저장소</td><td>memdir/, history.ts</td></tr>
       <tr><td><strong>Scheduler</strong></td><td>도구 스케줄링</td><td>StreamingToolExecutor</td></tr>
-      <tr><td><strong>Permissions</strong></td><td>도구 권한</td><td>5-Layer Permission Pipeline</td></tr>
+      <tr><td><strong>Permissions</strong></td><td>도구 권한</td><td>Sandbox + 5-Layer Permission Pipeline</td></tr>
     </table>
     </div>
   </div>
@@ -418,7 +418,7 @@ tr:hover td{background:rgba(99,102,241,.03)}
     <div class="bar-chart">
       <div class="bar-row"><div class="bar-label">Snip</div><div class="bar-track"><div class="bar-fill blue" style="width:15%">0ms, 무비용</div></div></div>
       <div class="bar-row"><div class="bar-label">Microcompact</div><div class="bar-track"><div class="bar-fill blue" style="width:20%">&lt;1ms, 무비용</div></div></div>
-      <div class="bar-row"><div class="bar-label">Auto-compact</div><div class="bar-track"><div class="bar-fill orange" style="width:60%">87% 임계값, LLM 비용</div></div></div>
+      <div class="bar-row"><div class="bar-label">Auto-compact</div><div class="bar-track"><div class="bar-fill orange" style="width:60%">effectiveWindow-13K 버퍼, LLM 비용</div></div></div>
       <div class="bar-row"><div class="bar-label">Reactive</div><div class="bar-track"><div class="bar-fill pink" style="width:90%">413 에러 시, 최후 수단</div></div></div>
     </div>
     <div class="card" style="border-color:var(--orange)">
@@ -473,7 +473,7 @@ tr:hover td{background:rgba(99,102,241,.03)}
       <div style="background:rgba(99,102,241,.06);border-radius:10px;padding:1rem;border:1px dashed var(--accent)">
         <div style="text-align:center;font-size:.7rem;color:var(--accent2);margin-bottom:.5rem;font-weight:700">while (true) — Agentic Loop</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
-          <div class="diagram-box" onclick="showHarness('context')" id="hb-context"><div class="box-title">④ 컨텍스트</div><div class="box-sub">4단계 압축, 87% 임계값</div></div>
+          <div class="diagram-box" onclick="showHarness('context')" id="hb-context"><div class="box-title">④ 컨텍스트</div><div class="box-sub">4단계 압축, effectiveWindow-13K 버퍼</div></div>
           <div class="diagram-box" onclick="showHarness('api')" id="hb-api"><div class="box-title">② LLM 호출</div><div class="box-sub">스트리밍 + 동시 도구 실행</div></div>
           <div class="diagram-box" onclick="showHarness('error')" id="hb-error"><div class="box-title">⑤ 오류 복구</div><div class="box-sub">Withholding + Cascade</div></div>
           <div class="diagram-box" onclick="showHarness('tools')" id="hb-tools"><div class="box-title">③ 도구 실행</div><div class="box-sub">배치, 동시성, 결과 예산</div></div>
@@ -553,8 +553,6 @@ tr:hover td{background:rgba(99,102,241,.03)}
 <section class="slide" id="s6" data-nav="핵심 패턴">
 <div class="slide-inner">
   <span class="tag tag-green">Key Patterns</span>
-  <h2 style="margin-top:.75rem">가장 가치 있는 3가지 구현 패턴</h2>
-
   <h2 style="margin-top:.75rem">가장 가치 있는 5가지 구현 패턴</h2>
 
   <div class="accordion">
@@ -641,6 +639,26 @@ tr:hover td{background:rgba(99,102,241,.03)}
         </div>
         <p><strong>Fail-Closed 기본값:</strong> 새 도구는 <code>isConcurrencySafe=false</code>, <code>isReadOnly=false</code>. 개발자가 명시적으로 안전 선언해야 완화.</p>
         <p style="margin-top:.5rem"><strong>안전성 연구 데이터:</strong> 평가 환경은 실제 위험을 8.5배 과소평가 (55.1% vs 6.5%). AI 코드 리뷰어는 의도적 버그 99% 탐지. Defense-in-depth + 런타임 모니터링 필수.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion(this)">
+      <span>패턴 4: Code Execution with MCP — 98.7% 토큰 절감</span>
+      <span class="arrow">▶</span>
+    </div>
+    <div class="accordion-body">
+      <div class="accordion-body-inner">
+        <p><strong>문제:</strong> MCP 도구를 직접 호출하면 중간 결과가 모두 모델 컨텍스트를 통과. 2시간 회의록이 2번 통과 → 150K 토큰 소비.</p>
+        <p><strong>해법:</strong> MCP 서버를 코드 API로 제공. 에이전트가 Python/TS 코드를 작성하여 도구 오케스트레이션:</p>
+        <div class="code-block"><span class="kw">import</span> * <span class="kw">as</span> gdrive <span class="kw">from</span> <span class="str">'./servers/google-drive'</span>;
+<span class="kw">const</span> transcript = (<span class="kw">await</span> gdrive.<span class="fn">getDocument</span>({id: <span class="str">'abc'</span>})).content;
+<span class="cmt">// transcript는 모델 컨텍스트를 통과하지 않음!</span>
+<span class="kw">const</span> pending = allRows.<span class="fn">filter</span>(r => r.Status === <span class="str">'pending'</span>);
+console.<span class="fn">log</span>(pending.<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">5</span>)); <span class="cmt">// 10K행 중 5행만 컨텍스트에</span></div>
+        <p><strong>PII 토크나이제이션:</strong> MCP 클라이언트가 PII를 토큰화 → 모델은 <code>[EMAIL_1]</code> 형태만 인식. GDPR 준수 + 유출 방지.</p>
+        <p><strong>결과:</strong> 150K → 2K 토큰 (<strong>98.7% 절감</strong>), Tool Search (85%), PTC (37%), Tool Examples (72%→90%)</p>
       </div>
     </div>
   </div>
@@ -912,7 +930,7 @@ const observer=new IntersectionObserver(entries=>{
       counted=true;
       animateCount('animLines',0,800000,'~','K',1000);
       animateCount('animTools',0,40,null,'+',1);
-      animateCount('animLayers',0,5,null,'',1);
+      animateCount('animLayers',0,6,null,'',1);
       animateCount('animRevenue',0,1,'$','B',1);
     }
   });
@@ -958,13 +976,15 @@ const harnessData={
 <li><strong>도구 풀 구성</strong> — Built-in + MCP - Deny 규칙, 안정 정렬</li>
 <li><strong>CacheSafeParams 스냅샷</strong> — Sub-Agent 캐시 공유용</li>
 </ol>`},
-  context:{title:'④ 컨텍스트 관리 하네스',content:`<p>매 턴마다 토큰 예산을 모니터링:</p>
+  context:{title:'④ 컨텍스트 관리 하네스',content:`<p>5단계 컨텍스트 관리 파이프라인 (매 루프 반복마다 순차 실행):</p>
 <ul style="font-size:.85rem;line-height:2;padding-left:1.25rem;color:var(--text2)">
-<li><strong>87%</strong> → Auto-compact 트리거 (Forked Agent 요약)</li>
-<li><strong>90%</strong> → Warning UI</li>
-<li><strong>95%</strong> → Error UI</li>
-<li><strong>100%</strong> → API 413 → Error Withholding → Cascade Recovery</li>
-<li><strong>Circuit Breaker</strong> — 연속 3회 실패 시 재시도 중단</li>
+<li><strong>1. Tool Result Budget</strong> → 대형 도구 결과를 디스크 참조로 교체</li>
+<li><strong>2. Snip</strong> → 오래된 메시지 그룹 제거</li>
+<li><strong>3. Microcompact</strong> → 오래된 Read/Bash 결과를 클리어 마커로 교체</li>
+<li><strong>4. Context Collapse</strong> → autocompact 전 메시지 축약 (성공 시 autocompact 불필요)</li>
+<li><strong>5. Auto-compact</strong> → effectiveWindow - 13K 버퍼 초과 시 Forked Agent 요약</li>
+<li><strong>비상: Reactive Compact</strong> → 413 에러 시 긴급 요약 (1회 시도)</li>
+<li><strong>Circuit Breaker</strong> — MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES=3 연속 실패 시 중단</li>
 </ul>`},
   api:{title:'② LLM API 호출',content:`<p>스트리밍 + 동시 도구 실행의 핵심:</p>
 <ul style="font-size:.85rem;line-height:2;padding-left:1.25rem;color:var(--text2)">

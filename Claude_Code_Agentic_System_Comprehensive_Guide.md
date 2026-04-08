@@ -214,18 +214,22 @@ Phase 1 (초기): 모든 에러를 사용자에게 표시
   → "API Error 429: Rate limit exceeded" 같은 메시지가 그대로 노출
   → 사용자: "뭘 해야 하죠?" (답: 아무것도. 기다리면 됨)
 
-Phase 2 (재시도 은닉): 처음 3번의 재시도를 숨김
-  → withRetry.ts: retryAttempt < 4이면 UI에 전달하지 않음
-  → 99%의 일시적 오류가 사용자 모르게 해결
+Phase 2 (지수 백오프 재시도 + 자동 모델 전환):
+  → withRetry.ts: DEFAULT_MAX_RETRIES=10, 지수 백오프 (500ms × 2^attempt)
+  → 모든 재시도마다 SystemAPIErrorMessage를 yield (숨기지 않음)
+  → 529(과부하) MAX_529_RETRIES=3회 연속 → FallbackTriggeredError
+  → query.ts에서 포착 시 fallback 모델로 자동 전환
+  → 사용자에게는 "Switched to [fallback] due to high demand"만 표시
 
-Phase 3 (Error Withholding): 복구 가능한 에러를 보류
-  → query.ts: 413이 오면 UI에 전달하지 않고, 컨텍스트 압축 시도
-  → 압축 성공 시 에러 폐기 — 사용자는 에러가 있었는지조차 모름
+Phase 3 (Error Withholding): query.ts 스트리밍 루프에서 복구 가능한 에러를 보류
+  → withheld 변수로 3가지 에러 유형을 보류:
+    1. prompt-too-long(413): collapse drain → reactive compact 시도
+    2. max_output_tokens: 8K→64K 확장 → multi-turn recovery (최대 3회)
+    3. media size: reactive compact strip-retry
+  → 복구 성공 시 에러 폐기, 실패 시에만 사용자에게 표시
   → "복구에 성공한 에러는 존재하지 않았던 것이다"
-
-Phase 4 (모델 Fallback): Opus 과부하 시 자동 Sonnet 전환
-  → 사용자: "좀 느리네" (품질은 유사)
-  → 해결 방법이 없는 정보는 불안만 유발하므로, 알리지 않음
+  → Guard 플래그: hasAttemptedReactiveCompact, maxOutputTokensRecoveryCount
+    → 무한 루프 방지: 이미 시도한 복구 경로를 재시도하지 않음
 ```
 
 **이 진화가 보여주는 것**: 에러 처리의 최고 수준은 **에러를 사용자에게 보여주지 않는 것**이다. "이 에러를 사용자에게 보여줬을 때 사용자가 할 수 있는 조치가 있는가?" — 없다면 숨기고 자동 복구하라.
@@ -244,15 +248,24 @@ Phase 2 (수동 압축): /compact 명령어 추가
   → 사용자가 직접 대화 요약을 트리거
   → 여전히 사용자가 "언제 압축해야 하는지" 판단해야 함
 
-Phase 3 (자동 압축): 87% 임계값에서 자동 트리거
-  → autoCompact.ts: effectiveWindow의 87% 도달 시 Forked Agent가 요약
-  → 사용자는 아무것도 모름 — "이 시스템은 절대 잊어버리지 않네"
+Phase 3 (자동 압축): 고정 토큰 버퍼 기반 트리거
+  → autoCompact.ts: threshold = effectiveWindow - AUTOCOMPACT_BUFFER_TOKENS(13K)
+  → effectiveWindow = contextWindow - min(maxOutputTokens, 20K)
+  → 200K 모델에서 ~167K 토큰 ≈ 83.5%, 1M 모델에서 ~967K ≈ 96.7%
+  → 비율이 아닌 고정 버퍼이므로, 컨텍스트 크기에 따라 트리거 비율이 달라짐
 
-Phase 4 (4단계 계층적 압축):
-  → Snip(0ms) → Microcompact(<1ms) → Auto-compact → Reactive compact
-  → 저비용부터 시도, 고비용은 최후 수단
-  → Circuit Breaker: 연속 3회 실패 시 재시도 중단
-  → Post-compact 복원: 스킬 5개 + 파일 5개 자동 재주입
+Phase 4 (5단계 계층적 컨텍스트 관리):
+  Pre-API-call pipeline (query.ts, 매 루프 반복마다 순차 실행):
+  1. Tool Result Budget: 대형 도구 결과를 디스크 참조로 교체
+  2. Snip: 오래된 메시지 그룹 제거 (feature-gated: HISTORY_SNIP)
+  3. Microcompact: 오래된 Read/Bash/Grep 결과를 "[Old tool result cleared]"로 교체
+  4. Context Collapse: 메시지 그룹 축약 (autocompact 전에 실행 — 성공하면 autocompact 불필요)
+  5. Auto-compact: forked Agent로 전체 대화 요약 (threshold 초과 시)
+  Post-API-call recovery:
+  6. Reactive Compact: API 413 에러 시 긴급 요약 (1회 시도, feature-gated: REACTIVE_COMPACT)
+  → Circuit Breaker: MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES=3 연속 실패 시 세션 내 중단
+  → Post-compact 복원: 최근 파일 5개(POST_COMPACT_MAX_FILES_TO_RESTORE=5)
+    + 스킬(25K 토큰 예산, 스킬당 5K 상한) + MCP/에이전트 정보
 ```
 
 **이 진화가 보여주는 것**: "사용자에게 시스템의 한계를 관리하라고 요청하는 것"은 설계 실패다. 컨텍스트 윈도우 관리는 100% 하네스의 책임이다.
@@ -502,17 +515,55 @@ done
 └──────────────────────────────────────────────────────┘
 ```
 
-### 각 서브시스템의 핵심 숫자들
+### 각 서브시스템의 핵심 숫자들 (코드베이스에서 검증)
 
 | 서브시스템 | 핵심 임계값/상수 | 의미 |
 |-----------|----------------|------|
-| 입력 처리 | CLAUDE.md 40KB 상한 | 프로젝트 규약의 적정 크기 |
-| Agentic Loop | 7 Continue + 11 Exit | 상태 전이의 완전한 열거 |
-| 도구 실행 | CONCURRENCY_MAX = 10 | 동시 도구 실행 상한 |
-| 컨텍스트 | 87% Auto-compact 임계값 | 능동적 압축 트리거 |
-| 오류 복구 | 3회 재시도 은닉 | 사용자가 모르는 복구 횟수 |
-| 체크포인트 | 100 스냅샷 상한 | 파일 히스토리 보관 수 |
-| 종료 조건 | Recovery 최대 3회 | 출력 토큰 복구 시도 제한 |
+| 입력 처리 | MAX_MEMORY_CHARACTER_COUNT = 40,000**자** | CLAUDE.md 크기 상한 (바이트가 아닌 문자 수) |
+| Agentic Loop | 7 Continue + 10 Exit 사유 | State 타입의 transition 필드가 모든 전이 사유를 추적 |
+| 도구 실행 | 기본 동시성 10 (env 오버라이드 가능) | 레거시 toolOrchestration 경로. StreamingToolExecutor는 isConcurrencySafe 플래그로 제어 |
+| 컨텍스트 | effectiveWindow - 13K 토큰 버퍼 | 200K에서 ~83.5%, 1M에서 ~96.7%. 비율이 아닌 고정 버퍼 |
+| 오류 복구 | DEFAULT_MAX_RETRIES = 10, 529 Fallback = 3회 | API 재시도 상한 10회, 529 3회 연속 시 모델 Fallback |
+| 체크포인트 | 100 스냅샷 상한 | 파일 히스토리 보관 수 (FIFO 제거) |
+| 종료 조건 | MAX_OUTPUT_TOKENS_RECOVERY_LIMIT = 3 | 출력 토큰 복구 시도 제한 |
+
+### Agentic Loop의 State Machine 패턴
+
+`query.ts`의 핵심 설계: 모든 루프 반복이 **왜 계속되었는지**를 `transition` 필드에 기록한다.
+
+```typescript
+type State = {
+  messages: Message[]
+  toolUseContext: ToolUseContext
+  autoCompactTracking: AutoCompactTrackingState | undefined
+  maxOutputTokensRecoveryCount: number    // 복구 시도 횟수 (0-3)
+  hasAttemptedReactiveCompact: boolean    // reactive compact 시도 여부
+  maxOutputTokensOverride: number | undefined  // 8K→64K 확장 시 설정
+  pendingToolUseSummary: Promise<...> | undefined
+  turnCount: number
+  transition: Continue | undefined        // 이전 반복의 계속 사유
+}
+```
+
+**7가지 Continue 사유** (transition.reason):
+`collapse_drain_retry`, `reactive_compact_retry`, `max_output_tokens_escalate`,
+`max_output_tokens_recovery`, `stop_hook_blocking`, `token_budget_continuation`, `next_turn`
+
+**10가지 Exit 사유** (CompletionReason):
+`completed`, `max_turns`, `stop_hook_prevented` (정상),
+`model_error`, `prompt_too_long`, `image_error`, `blocking_limit` (오류),
+`aborted_streaming`, `aborted_tools`, `hook_stopped` (중단)
+
+**Guard 플래그의 중요성**: `hasAttemptedReactiveCompact`가 true인 상태에서 다시 413이 발생하면, reactive compact를 재시도하지 않고 에러를 표출한다. `maxOutputTokensRecoveryCount`가 3에 도달하면 더 이상 복구 메시지를 주입하지 않는다. 이 플래그들이 없으면 무한 루프가 발생한다.
+
+**턴 간 리셋 규칙**:
+```
+next_turn에서 리셋:                    next_turn에서 보존:
+  maxOutputTokensRecoveryCount → 0      messages (누적)
+  hasAttemptedReactiveCompact → false    autoCompactTracking (압축 상태)
+  maxOutputTokensOverride → undefined    turnCount (증가)
+  pendingToolUseSummary → undefined      toolUseContext (공유)
+```
 
 ### "Effective Harnesses for Long-Running Agents" (2025.11.26)
 
@@ -618,18 +669,48 @@ Terminal-Bench 2.0에서 6 percentage points 차이 (p < 0.01)
 
 이 발견이 Claude Code의 Forked Agent 아키텍처에 반영되었다:
 
-```
-CacheSafeParams = { 시스템 프롬프트, 도구, 모델, thinking, 메시지 접두사 }
+```typescript
+// forkedAgent.ts — 실제 타입 정의
+type CacheSafeParams = {
+  systemPrompt: SystemPrompt           // 시스템 프롬프트
+  userContext: { [k: string]: string }  // 사용자 컨텍스트 (CLAUDE.md 등)
+  systemContext: { [k: string]: string } // 시스템 컨텍스트 (git 상태 등)
+  toolUseContext: ToolUseContext         // 도구 + 모델 + thinkingConfig 포함
+  forkContextMessages: Message[]        // 메시지 접두사
+}
 
-부모 에이전트                    자식 에이전트 (Forked)
-  ├─ 시스템 프롬프트 ──────→     동일 (캐시 HIT)
-  ├─ 도구 목록 ──────────→      동일 (캐시 HIT)  
-  ├─ 모델 ──────────────→      동일 (캐시 HIT)
-  └─ 메시지 접두사 ─────→       동일 (캐시 HIT)
-  
-  → 자식의 입력 비용 ~90% 절감
-  → "토큰을 아끼지 말라"와 "비용을 통제하라"의 양립
+// API의 Prompt Cache 메커니즘:
+// {system, tools, messages} 접두사가 동일하면 KV-cache HIT
+// → 부모와 자식이 동일한 CacheSafeParams를 공유
+// → 자식 에이전트의 입력 비용 대폭 절감 (접두사 캐시 재사용)
+// 주의: maxOutputTokens를 설정하면 thinkingConfig.budgetTokens가 변경되어
+//       캐시 키가 달라질 수 있음 → CacheSafeParams로 타입 수준에서 방지
 ```
+
+### StreamingToolExecutor: 스트리밍 중 도구 선행 실행
+
+Claude Code의 가장 중요한 성능 최적화 중 하나:
+
+```
+모델이 응답을 스트리밍하는 동안 (5-30초):
+  tool_use 블록이 감지되는 즉시 → streamingToolExecutor.addTool(block)
+  
+  동시성 규칙 (isConcurrencySafe 플래그):
+    ├─ true인 도구들 (Read, Grep, Glob): 서로 병렬 실행 가능
+    ├─ false인 도구들 (Edit, Write, Bash): 단독 실행 (배타적)
+    └─ 혼합 불가: false 도구가 실행 중이면 모두 대기
+  
+  에러 전파 규칙:
+    ├─ Bash 에러 → siblingAbortController.abort() → 형제 도구 취소
+    └─ Read/WebFetch 에러 → 독립 (다른 도구 계속 실행)
+  
+  결과 순서: 병렬 실행이더라도 tool_use 순서대로 yield (일관성 보장)
+  
+  Fallback: 스트리밍 실패 시 executor를 discard()하고 새로 생성
+           → 부분 완료된 도구 결과는 tombstone 처리
+```
+
+이 패턴의 효과: 모델 스트리밍의 5-30초 윈도우를 활용하여 도구 실행을 오버랩. 매 턴 2-5초의 대기 시간을 제거한다.
 
 ---
 
@@ -985,14 +1066,23 @@ Layer 2 (클라이언트측): 트랜스크립트 분류기
 **당신의 시스템에 주는 교훈**: 자율성은 on/off가 아니라 스펙트럼이다.
 
 ```
-Permission Mode 스펙트럼 (Claude Code):
+Permission Mode 스펙트럼 (types/permissions.ts에서 검증):
 
-  default     plan     acceptEdits    auto    bypassPermissions
-  ────────────────────────────────────────────────────────────→
-  모든 것 확인   계획 후 실행  편집만 자동    ML 판단   모든 것 자동
-  
-  사용자가 이 스펙트럼 위에서 자신의 위치를 선택하게 하라.
-  시스템은 각 위치에서 가능한 최대의 안전성을 제공하라.
+  External Modes (사용자 선택 가능):
+  default → plan → acceptEdits → dontAsk → bypassPermissions
+  모든 확인  계획후실행  편집자동    사전승인만   모든것 자동
+
+  Internal Modes (시스템 전용):
+  auto: ML 분류기 기반 자동 승인 (Team/Enterprise 전용)
+        → SAFE_YOLO_ALLOWLISTED_TOOLS: Read, Grep, Glob, LSP, ToolSearch,
+          Task*, Plan 도구 등이 분류기 없이 즉시 허용
+        → 나머지: Sonnet 4.6 sideQuery로 분류
+        → 3회 연속 차단 또는 세션 내 20회 차단 시 → 수동 프롬프팅으로 전환
+  bubble: 에이전트 도구 권한 상위 위임 (내부 전용)
+
+  보호된 디렉토리 (모든 모드에서):
+  .git, .vscode, .idea, .husky, .claude 쓰기는 항상 확인 필요
+  예외: .claude/commands, .claude/agents, .claude/skills
 ```
 
 ## Anthropic 내부의 Claude Code 사용 실태 — 프로덕션 데이터
@@ -1153,7 +1243,9 @@ Death Spiral 방지 (에러 처리가 에러를 유발하지 않도록)
 ```
 추가하는 모든 토큰이 주의력 예산을 소비한다.
 KV-Cache 보존이 비용의 핵심이다.
-압축은 4단계로: Snip → Microcompact → Auto-compact → Reactive compact
+압축은 5단계로: Tool Result Budget → Snip → Microcompact → Context Collapse → Auto-compact
++ 비상 복구: Reactive Compact (413 에러 시)
+Context Collapse가 Auto-compact 전에 실행 → 성공 시 Auto-compact 불필요 (세밀한 컨텍스트 보존)
 ```
 
 ### 원칙 5: 캐시 공유가 Multi-Agent 비용을 해결한다
@@ -1268,7 +1360,7 @@ Phase 4: Autonomy (지속적)
 | Auto Mode 오탐률 | **0.4%** | Claude Code Auto Mode |
 | C 컴파일러 (16 Agent) | **$20K, 99% GCC 통과** | Parallel Claudes |
 | AI 보조 시 디버깅 능력 저하 | **17%** | Skill Formation |
-| 기본 도구 응답 제한 | **25,000 토큰** | Writing Effective Tools |
+| 기본 도구 결과 크기 | **DEFAULT_MAX_RESULT_SIZE_CHARS = 50,000자** | Tool.ts (도구별 상이: Bash 30K자, FileRead 별도) |
 | GitHub Code Review 비용 | **$15-25/리뷰** | Claude Code 공식 문서 |
 
 ---
