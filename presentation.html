@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Enterprise Agentic LLM System 구축의 기술 — Claude Code 심층 분석</title>
+<title>하네스 엔지니어링 — Claude Code로 배우는 Agentic LLM System 설계</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -187,10 +187,10 @@ tr:hover td{background:rgba(99,102,241,.03)}
   <div style="margin-bottom:1rem">
     <span class="tag tag-blue" style="font-size:.8rem;padding:.3rem .8rem">Technical Report 2026</span>
   </div>
-  <h1><span class="gradient-text">Enterprise Agentic LLM System</span><br>구축의 기술</h1>
+  <h1><span class="gradient-text">하네스 엔지니어링</span></h1>
   <p style="font-size:1.15rem;max-width:700px;margin:1.5rem auto;color:var(--text2)">
-    Claude Code 심층 분석을 통해 배우는<br>
-    Production-Grade Agentic System의 설계 원칙과 실전 패턴
+    Claude Code로 배우는 Agentic LLM System 설계<br>
+    14개월 진화의 기술적 해부
   </p>
   <div class="stat-grid" style="max-width:800px;margin:2.5rem auto">
     <div class="stat"><div class="stat-value blue" id="animLines">0</div><div class="stat-label">Lines of Code</div></div>
@@ -204,37 +204,30 @@ tr:hover td{background:rgba(99,102,241,.03)}
 </div>
 </section>
 
-<!-- ==================== SLIDE 1: WHY ==================== -->
-<section class="slide" id="s1" data-nav="Why">
+<!-- ==================== SLIDE 1: EQUATION ==================== -->
+<section class="slide" id="s1" data-nav="공식">
 <div class="slide-inner">
-  <span class="tag tag-orange">The Problem</span>
-  <h2 style="margin-top:.75rem">Enterprise Agentic AI의 현실</h2>
-  <p>대부분의 Enterprise Agentic AI 프로젝트가 실패하는 이유</p>
+  <span class="tag tag-blue">Core Equation</span>
+  <h2 style="margin-top:.75rem">Agent = Model + Harness</h2>
+  <p>모델은 API 호출이다. <strong>하네스가 제품이다.</strong></p>
 
-  <div class="stat-grid" style="margin:2rem 0">
-    <div class="stat"><div class="stat-value orange">92%</div><div class="stat-label">비용 초과 경험 (IDC)</div></div>
-    <div class="stat"><div class="stat-value pink">40%</div><div class="stat-label">파일럿 6개월 내 실패 (Gartner)</div></div>
-    <div class="stat"><div class="stat-value orange">17x</div><div class="stat-label">Multi-Agent 오류 증폭 (DeepMind)</div></div>
-    <div class="stat"><div class="stat-value green">7+10</div><div class="stat-label">Continue + Exit 사유</div></div>
+  <div class="quote" style="margin:1.5rem 0">
+    "LLM이 CPU라면, 하네스는 운영체제다.<br>
+    컨텍스트 큐레이션, 도구 디스패치, 오류 복구, 권한 관리 — 모두 하네스의 책임."
   </div>
 
-  <div class="quote">
-    "이 간극은 어디서 오는가? <strong>하네스 설계의 차이</strong>다.<br>
-    모델은 API로 누구나 접근 가능하다. 제품의 차별화는 하네스에서 온다."
-  </div>
-
-  <div class="card" style="margin-top:1.5rem;background:rgba(99,102,241,.04)">
-    <h3>Agent = Model + Harness</h3>
+  <div class="card" style="background:rgba(99,102,241,.04)">
     <div class="table-wrap" style="border:none">
     <table>
       <tr><th>OS 개념</th><th>에이전트 대응물</th><th>Claude Code 구현</th></tr>
-      <tr><td><strong>CPU</strong></td><td>LLM (추론 엔진)</td><td>Anthropic API (Opus/Sonnet/Haiku)</td></tr>
+      <tr><td><strong>CPU</strong></td><td>LLM (추론)</td><td>Anthropic API (Opus/Sonnet/Haiku)</td></tr>
       <tr><td><strong>RAM</strong></td><td>컨텍스트 윈도우</td><td>200K ~ 1M 토큰</td></tr>
-      <tr><td><strong>OS/Kernel</strong></td><td>하네스</td><td>query.ts (1,729줄 Agentic Loop)</td></tr>
+      <tr><td><strong>OS/Kernel</strong></td><td>하네스</td><td>query.ts (1,729줄 State Machine)</td></tr>
       <tr><td><strong>System Calls</strong></td><td>도구 호출</td><td>43 Tool Directories</td></tr>
-      <tr><td><strong>File System</strong></td><td>영구 저장소</td><td>memdir/, history.ts</td></tr>
-      <tr><td><strong>Scheduler</strong></td><td>도구 스케줄링</td><td>StreamingToolExecutor</td></tr>
-      <tr><td><strong>Permissions</strong></td><td>도구 권한</td><td>Sandbox + 5-Layer Permission Pipeline</td></tr>
+      <tr><td><strong>Scheduler</strong></td><td>도구 스케줄링</td><td>StreamingToolExecutor (스트리밍 중 병렬)</td></tr>
+      <tr><td><strong>Virtual Memory</strong></td><td>컨텍스트 압축</td><td>5단계 파이프라인 + Reactive Recovery</td></tr>
+      <tr><td><strong>Permissions</strong></td><td>권한</td><td>OS Sandbox + 5-Layer Pipeline + ML 분류기</td></tr>
+      <tr><td><strong>File System</strong></td><td>영구 메모리</td><td>memdir/ (4유형 자동 추출/주입)</td></tr>
     </table>
     </div>
   </div>
