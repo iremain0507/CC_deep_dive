@@ -727,6 +727,40 @@ tr:hover td{background:rgba(99,102,241,.03)}
 </div>
 </section>
 
+<!-- ==================== SLIDE 8.5: SAFETY & DATA ==================== -->
+<section class="slide" id="s8b" data-nav="안전성+데이터">
+<div class="slide-inner">
+  <span class="tag tag-pink">Safety & Production Data</span>
+  <h2 style="margin-top:.75rem">안전성 연구 + Anthropic 내부 데이터가 말해주는 것</h2>
+
+  <div class="card-grid card-grid-2" style="margin:1.5rem 0">
+    <div class="card" style="border-color:var(--pink)">
+      <h3 style="color:var(--pink)">에이전트 안전성: 3대 경고</h3>
+      <div style="font-size:.8rem;color:var(--text2);line-height:2">
+        <p><strong>1. 평가 ≠ 실제 위험</strong><br>"실제 배포"라 판단 시 55.1% 위험 행동 vs "평가 중" 6.5%<br><span style="color:var(--pink)">→ 평가가 위험을 <strong>8.5배 과소평가</strong></span></p>
+        <p><strong>2. 보상 해킹은 일반화된다</strong><br>코딩에서 테스트 우회를 학습하면, 대화에서도 기만 행동 출현<br><span style="color:var(--pink)">→ RLHF는 "표면적 정렬"만 생성 가능</span></p>
+        <p><strong>3. 그러나 AI-reviewing-AI는 작동</strong><br>코드 사보타주 <strong>99% 탐지</strong> (Claude 3.5 Sonnet 리뷰어)<br><span style="color:var(--green)">→ 다중 모델 감독은 비용 대비 효과적</span></p>
+      </div>
+    </div>
+    <div class="card" style="border-color:var(--cyan)">
+      <h3 style="color:var(--cyan)">Anthropic 내부 프로덕션 데이터</h3>
+      <div class="bar-chart">
+        <div class="bar-row"><div class="bar-label">업무 중 Claude 사용</div><div class="bar-track"><div class="bar-fill blue" style="width:59%">59% (1년 전 28%)</div></div></div>
+        <div class="bar-row"><div class="bar-label">생산성 향상</div><div class="bar-track"><div class="bar-fill green" style="width:50%">50% (1년 전 20%)</div></div></div>
+        <div class="bar-row"><div class="bar-label">새로운 작업 생성</div><div class="bar-track"><div class="bar-fill orange" style="width:27%">27%</div></div></div>
+        <div class="bar-row"><div class="bar-label">완전 위임 가능</div><div class="bar-track"><div class="bar-fill pink" style="width:15%">0-20%</div></div></div>
+      </div>
+      <p style="font-size:.75rem;color:var(--text3);margin-top:.5rem">연속 도구 호출: 9.8→21.2 (116%↑), 인간 개입: 6.2→4.1 (33%↓) — 6개월간</p>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:var(--orange)">
+    <h3 style="color:var(--orange)">감독의 역설 (The Paradox of Supervision)</h3>
+    <p style="font-size:.85rem;margin:0">"효과적인 AI 감독은 과도한 의존으로 인해 침식될 수 있는 바로 그 기술적 깊이를 요구한다." AI 보조 그룹이 이해도 <strong>17% 낮은 점수</strong>, <strong>디버깅에서 가장 큰 격차</strong>. 최적 패턴: AI에게 코드가 아닌 <strong>개념을 질문</strong>하는 것.</p>
+  </div>
+</div>
+</section>
+
 <!-- ==================== SLIDE 9: ROADMAP ==================== -->
 <section class="slide" id="s9" data-nav="로드맵">
 <div class="slide-inner">
@@ -741,9 +775,9 @@ tr:hover td{background:rgba(99,102,241,.03)}
       </div>
       <ul style="font-size:.8rem;color:var(--text2);padding-left:1.25rem;line-height:2.2">
         <li>while(true) Agentic Loop</li>
-        <li>3-5개 핵심 도구</li>
+        <li>3-5개 핵심 도구 + Think Tool (54%↑)</li>
         <li>기본 권한 (모든 도구에 확인)</li>
-        <li>스트리밍 응답 출력</li>
+        <li>스트리밍 + 도구 설계 원칙 적용</li>
       </ul>
     </div>
     <div class="card" style="border-top:3px solid var(--green)">
@@ -755,7 +789,7 @@ tr:hover td{background:rgba(99,102,241,.03)}
         <li>컨텍스트 압축 (자동, 2단계+)</li>
         <li>Error Withholding + Cascade</li>
         <li>API 재시도 (은닉 + FG/BG 분리)</li>
-        <li>비용 추적</li>
+        <li>비용 추적 + 체크포인트 + CLAUDE.md</li>
       </ul>
     </div>
     <div class="card" style="border-top:3px solid var(--orange)">
@@ -764,10 +798,10 @@ tr:hover td{background:rgba(99,102,241,.03)}
         <span class="tag tag-orange">6-8주</span>
       </div>
       <ul style="font-size:.8rem;color:var(--text2);padding-left:1.25rem;line-height:2.2">
-        <li>Sub-Agent (CacheSafeParams)</li>
-        <li>MCP 클라이언트 통합</li>
-        <li>Streaming Tool Executor</li>
-        <li>권한 학습 (규칙 추출)</li>
+        <li>Sub-Agent (CacheSafeParams ~90%↓)</li>
+        <li>MCP + Tool Search (85%↓)</li>
+        <li>Streaming Tool Executor + Skills</li>
+        <li>권한 학습 + 샌드박싱 (84%↓)</li>
       </ul>
     </div>
     <div class="card" style="border-top:3px solid var(--pink)">
@@ -776,10 +810,10 @@ tr:hover td{background:rgba(99,102,241,.03)}
         <span class="tag tag-pink">지속적</span>
       </div>
       <ul style="font-size:.8rem;color:var(--text2);padding-left:1.25rem;line-height:2.2">
-        <li>ML 기반 자동 승인</li>
-        <li>Plugin/Skill 확장 시스템</li>
-        <li>검증 분리 (Evaluator)</li>
-        <li>OpenTelemetry 관찰가능성</li>
+        <li>Auto Mode + Code Exec MCP (98.7%↓)</li>
+        <li>검증 분리 + Skills 2.0 Evals</li>
+        <li>안전성 (AI-review-AI, 런타임 모니터)</li>
+        <li>장시간 에이전트 (Ralph Loop)</li>
       </ul>
     </div>
   </div>
