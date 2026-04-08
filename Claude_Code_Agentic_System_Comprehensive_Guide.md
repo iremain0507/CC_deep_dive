@@ -12,7 +12,7 @@
 
 2025년 2월 연구 프리뷰로 시작하여 14개월 만에 연간 $1B+ 매출을 달성한 Claude Code는, 현존하는 가장 성숙한 Production-Grade Agentic Coding System이다.
 
-이 시스템은 단순한 "LLM + 도구 호출"이 아니다. **~800K줄의 TypeScript, 40+ 도구, 5계층 권한 시스템, 4단계 컨텍스트 압축, 7가지 오류 복구 경로**를 갖춘 완전한 에이전트 하네스(Harness)다.
+이 시스템은 단순한 "LLM + 도구 호출"이 아니다. **~513K줄의 TypeScript(src/ 기준), 43개 도구 디렉토리, Sandbox + 5계층 권한 시스템, 5단계 컨텍스트 압축 + Reactive Recovery, 7가지 Continue 사유와 10가지 Exit 사유를 가진 상태 머신 기반 Agentic Loop**를 갖춘 완전한 에이전트 하네스(Harness)다.
 
 그러나 이 모든 것이 처음부터 존재한 것은 아니다. Claude Code는 Anthropic이 자체 블로그에서 공유한 원칙들을 직접 코드로 실현하면서 진화해 왔고, 그 과정에서 발견한 교훈들이 다시 블로그로 돌아가 공유되었다.
 
@@ -520,7 +520,7 @@ done
 | 서브시스템 | 핵심 임계값/상수 | 의미 |
 |-----------|----------------|------|
 | 입력 처리 | MAX_MEMORY_CHARACTER_COUNT = 40,000**자** | CLAUDE.md 크기 상한 (바이트가 아닌 문자 수) |
-| Agentic Loop | 7 Continue + 10 Exit 사유 | State 타입의 transition 필드가 모든 전이 사유를 추적 |
+| Agentic Loop | 7 Continue + 10 고유 Exit 사유 | State 타입의 transition 필드가 모든 전이 사유를 추적 |
 | 도구 실행 | 기본 동시성 10 (env 오버라이드 가능) | 레거시 toolOrchestration 경로. StreamingToolExecutor는 isConcurrencySafe 플래그로 제어 |
 | 컨텍스트 | effectiveWindow - 13K 토큰 버퍼 | 200K에서 ~83.5%, 1M에서 ~96.7%. 비율이 아닌 고정 버퍼 |
 | 오류 복구 | DEFAULT_MAX_RETRIES = 10, 529 Fallback = 3회 | API 재시도 상한 10회, 529 3회 연속 시 모델 Fallback |

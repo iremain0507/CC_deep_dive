@@ -4,7 +4,7 @@
 
 > **핵심 철학**: 사용자는 "무엇을 할 것인가"에만 집중하고, "어떻게 할 것인가"의 모든 마찰은 시스템이 흡수한다.
 >
-> **참조 구현체**: Claude Code CLI — ~800K lines, 40+ Tools, 5-Layer Permission, 4-Level Context Compression
+> **참조 구현체**: Claude Code CLI — ~513K lines (src/), 43 Tool directories, Sandbox + 5-Layer Permission, 5-Stage Context Compression + Reactive Recovery
 >
 > **대상 독자**: Enterprise Agentic LLM 시스템을 설계하는 AI 엔지니어
 
